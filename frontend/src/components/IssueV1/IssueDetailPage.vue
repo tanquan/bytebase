@@ -2,11 +2,7 @@
   <div ref="containerRef" class="h-full flex flex-col">
     <div class="border-b">
       <BannerSection v-if="!isCreating" />
-      <FeatureAttention
-        v-else-if="existedDeactivatedInstance"
-        type="warning"
-        feature="bb.feature.custom-approval"
-      />
+      <FeatureAttention feature="bb.feature.custom-approval" />
 
       <HeaderSection />
     </div>
@@ -74,9 +70,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { FeatureAttention } from "@/components/FeatureGuard";
+import type { Plan, Plan_Spec } from "@/types/proto/v1/plan_service";
 import { type Task } from "@/types/proto/v1/rollout_service";
+import { SQLCheckSection } from "../Plan/components";
+import { providePlanSQLCheckContext } from "../Plan/components/SQLCheckSection/context";
 import { provideSidebarContext } from "../Plan/logic";
 import { Drawer } from "../v2";
 import {
@@ -92,20 +91,17 @@ import {
   IssueReviewActionPanel,
   IssueStatusActionPanel,
   TaskRolloutActionPanel,
-  SQLCheckSection,
   IssueCommentSection,
 } from "./components";
-import { provideIssueSQLCheckContext } from "./components/SQLCheckSection/context";
-import { provideIssueIntanceContext } from "./components/Sidebar/ReviewSection/utils";
 import type {
   IssueReviewAction,
   IssueStatusAction,
   TaskRolloutAction,
 } from "./logic";
-import { useIssueContext, usePollIssue } from "./logic";
+import { specForTask, useIssueContext, usePollIssue } from "./logic";
 
 const containerRef = ref<HTMLElement>();
-const { isCreating, events } = useIssueContext();
+const { isCreating, issue, selectedTask, events } = useIssueContext();
 
 const ongoingIssueReviewAction = ref<{
   action: IssueReviewAction;
@@ -139,13 +135,18 @@ events.on("perform-task-rollout-action", async ({ action, tasks }) => {
   };
 });
 
-provideIssueSQLCheckContext();
+providePlanSQLCheckContext({
+  project: computed(() => issue.value.projectEntity),
+  plan: computed(() => issue.value.planEntity as Plan),
+  selectedSpec: computed(
+    () => specForTask(issue.value.planEntity, selectedTask.value) as Plan_Spec
+  ),
+  selectedTask: selectedTask,
+});
 
 const {
   mode: sidebarMode,
   desktopSidebarWidth,
   mobileSidebarOpen,
 } = provideSidebarContext(containerRef);
-
-const { existedDeactivatedInstance } = provideIssueIntanceContext();
 </script>

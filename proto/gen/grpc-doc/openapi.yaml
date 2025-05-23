@@ -8123,11 +8123,6 @@ components:
                     type: string
                 description:
                     type: string
-                creator:
-                    type: string
-                    description: |-
-                        The name of the creator in users/{email} format.
-                         TODO: we should mark it as OUTPUT_ONLY, but currently the frontend will post the approval setting with creator.
         ApproveIssueRequest:
             required:
                 - name
@@ -8334,6 +8329,10 @@ components:
                          Format: projects/{project}/rollouts/{rollout}/stages/{stage}/tasks/{task}
                 reason:
                     type: string
+                runTime:
+                    type: string
+                    description: The task run should run after run_time.
+                    format: date-time
         BatchRunTasksResponse:
             type: object
             properties: {}
@@ -13386,6 +13385,10 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/IndexMetadata'
+                checkConstraints:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CheckConstraintMetadata'
             description: TablePartitionMetadata is the metadata for table partitions.
         TagPolicy:
             type: object
@@ -13519,6 +13522,13 @@ components:
                     readOnly: true
                     type: string
                     description: 'Format: projects/{project}/sheets/{sheet}'
+                runTime:
+                    readOnly: true
+                    type: string
+                    description: |-
+                        The task run should run after run_time.
+                         This can only be set when creating the task run calling BatchRunTasks.
+                    format: date-time
         TaskRunLog:
             type: object
             properties:
