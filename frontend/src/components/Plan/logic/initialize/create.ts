@@ -1,13 +1,10 @@
-import { cloneDeep, groupBy, orderBy } from "lodash-es";
+import { cloneDeep, head, includes } from "lodash-es";
 import { v4 as uuidv4 } from "uuid";
 import { useRoute } from "vue-router";
 import {
   useChangelistStore,
-  useDatabaseV1Store,
-  useEnvironmentV1Store,
   useProjectV1Store,
   useSheetV1Store,
-  batchGetOrFetchDatabases,
 } from "@/store";
 import { projectNamePrefix } from "@/store/modules/v1/common";
 import { composePlan } from "@/store/modules/v1/plan";
@@ -16,18 +13,17 @@ import {
   Plan,
   Plan_ChangeDatabaseConfig,
   Plan_ChangeDatabaseConfig_Type,
+  Plan_ExportDataConfig,
   Plan_Spec,
-  Plan_Step,
 } from "@/types/proto/v1/plan_service";
-import { Sheet } from "@/types/proto/v1/sheet_service";
 import {
   extractSheetUID,
   generateSQLForChangeToDatabase,
   getSheetStatement,
   setSheetStatement,
 } from "@/utils";
-import { databaseEngineForSpec, sheetNameForSpec } from "../plan";
-import { createEmptyLocalSheet, getLocalSheetByName } from "../sheet";
+import { sheetNameForSpec, targetsForSpec } from "../plan";
+import { getLocalSheetByName, getNextLocalSheetUID } from "../sheet";
 import { extractInitialSQLFromQuery } from "./util";
 
 export type InitialSQL = {
@@ -35,9 +31,9 @@ export type InitialSQL = {
   sql?: string;
 };
 
-type CreatePlanParams = {
-  databaseNameList: string[];
+export type CreatePlanParams = {
   project: ComposedProject;
+  template: IssueType;
   query: Record<string, string>;
   initialSQL: InitialSQL;
 };
@@ -57,10 +53,15 @@ export const createPlanSkeleton = async (
   const project = await useProjectV1Store().getOrFetchProjectByName(
     `${projectNamePrefix}${projectName}`
   );
-  const databaseNameList = (query.databaseList ?? "").split(",");
+  const template = query.template as IssueType | undefined;
+  if (!template) {
+    throw new Error(
+      "Template is required to create a plan skeleton. Please provide a valid template."
+    );
+  }
   const params: CreatePlanParams = {
-    databaseNameList,
     project,
+    template,
     query,
     initialSQL: await extractInitialSQLFromQuery(query),
   };
@@ -69,110 +70,111 @@ export const createPlanSkeleton = async (
 };
 
 export const buildPlan = async (params: CreatePlanParams) => {
-  const { databaseNameList, project, query } = params;
+  if (
+    !includes(
+      [
+        "bb.issue.database.data.update",
+        "bb.issue.database.schema.update",
+        "bb.issue.database.data.export",
+      ],
+      params.template
+    )
+  ) {
+    throw new Error(
+      "Unsupported template for plan creation: " + params.template
+    );
+  }
 
-  const plan = Plan.fromJSON({
+  const { project, query } = params;
+  const databaseNameList = (query.databaseList ?? "").split(",");
+  const plan = Plan.fromPartial({
     name: `${project.name}/plans/${nextUID()}`,
     title: query.name,
     description: query.description,
   });
   if (query.changelist) {
-    // build plan for changelist
-    plan.steps = await buildStepsViaChangelist(
+    plan.specs = await buildSpecsViaChangelist(
       databaseNameList,
       query.changelist,
       params
     );
-  } else if (query.databaseGroupName) {
-    plan.steps = await buildStepsForDatabaseGroup(
-      params,
-      query.databaseGroupName
-    );
   } else {
-    // build standard plan
-    // Use dedicated sheets if sqlMap is specified.
-    // Share ONE sheet if otherwise.
-    const sheetUID = hasInitialSQL(params.initialSQL) ? undefined : nextUID();
-    plan.steps = await buildSteps(databaseNameList, params, sheetUID);
+    const targets = query.databaseGroupName
+      ? [query.databaseGroupName]
+      : databaseNameList;
+    // If initialSQL.sqlMap is provided, we will use it to build multiple specs.
+    // Mainly used for sync schema.
+    const shouldUseMultiSpecs =
+      params.initialSQL.sqlMap &&
+      Object.keys(params.initialSQL.sqlMap).length > 0;
+    if (shouldUseMultiSpecs) {
+      for (const target of targets) {
+        const spec = await buildSpecForTargetsV1([target], params);
+        maybeSetInitialSQLForSpec(spec, params);
+        plan.specs.push(spec);
+      }
+    } else {
+      const spec = await buildSpecForTargetsV1(targets, params);
+      maybeSetInitialSQLForSpec(spec, params);
+      plan.specs = [spec];
+    }
   }
   return await composePlan(plan);
 };
 
-export const buildSteps = async (
-  databaseNameList: string[],
-  params: CreatePlanParams,
-  sheetUID?: string // if specified, all specs will share the same sheet
+const buildSpecForTargetsV1 = async (
+  targets: string[],
+  { project, template, query }: CreatePlanParams,
+  sheetUID?: string
 ) => {
-  await batchGetOrFetchDatabases(databaseNameList);
-  const databaseStore = useDatabaseV1Store();
-  const databaseList = databaseNameList.map((name) =>
-    databaseStore.getDatabaseByName(name)
-  );
-
-  const databaseListGroupByEnvironment = groupBy(
-    databaseList,
-    (db) => db.effectiveEnvironment
-  );
-  const stepList = orderBy(
-    Object.keys(databaseListGroupByEnvironment).map((env) => {
-      const environment = useEnvironmentV1Store().getEnvironmentByName(env);
-      const databases = databaseListGroupByEnvironment[env];
-      return {
-        environment,
-        databases,
-      };
-    }),
-    [(step) => step.environment?.order],
-    ["asc"]
-  );
-
-  const steps: Plan_Step[] = [];
-  for (let i = 0; i < stepList.length; i++) {
-    const { environment, databases } = stepList[i];
-    const step = Plan_Step.fromJSON({
-      // Use environment title as step title.
-      title: environment?.title,
-    });
-    for (let j = 0; j < databases.length; j++) {
-      const db = databases[j];
-      const spec = await buildSpecForTarget(db.name, params, sheetUID);
-      step.specs.push(spec);
-      maybeSetInitialSQLForSpec(spec, db.name, params);
+  let sheet = `${project.name}/sheets/${sheetUID ?? getNextLocalSheetUID()}`;
+  if (query.sheetId) {
+    const remoteSheet = await useSheetV1Store().getOrFetchSheetByUID(
+      query.sheetId,
+      "FULL"
+    );
+    if (remoteSheet) {
+      // make a local copy for remote sheet for further editing
+      console.debug(
+        "copy remote sheet to local for further editing",
+        remoteSheet
+      );
+      const localSheet = getLocalSheetByName(sheet);
+      localSheet.payload = cloneDeep(remoteSheet.payload);
+      const statement = getSheetStatement(remoteSheet);
+      setSheetStatement(localSheet, statement);
+      sheet = remoteSheet.name;
     }
-    steps.push(step);
   }
-  return steps;
+
+  const spec = Plan_Spec.fromPartial({
+    id: uuidv4(),
+  });
+  switch (template) {
+    case "bb.issue.database.data.update":
+    case "bb.issue.database.schema.update": {
+      spec.changeDatabaseConfig = Plan_ChangeDatabaseConfig.fromPartial({
+        targets,
+        sheet,
+        type:
+          template === "bb.issue.database.data.update"
+            ? Plan_ChangeDatabaseConfig_Type.DATA
+            : Plan_ChangeDatabaseConfig_Type.MIGRATE,
+      });
+      break;
+    }
+    case "bb.issue.database.data.export": {
+      spec.exportDataConfig = Plan_ExportDataConfig.fromPartial({
+        targets,
+        sheet,
+      });
+      break;
+    }
+  }
+  return spec;
 };
 
-export const buildStepsForDatabaseGroup = async (
-  params: CreatePlanParams,
-  databaseGroupName: string
-) => {
-  // Create sheet from SQL template in URL query
-  // The sheet will be used when previewing plan
-  const sql = params.initialSQL.sql ?? "";
-  const sheetCreate = Sheet.fromPartial({
-    ...createEmptyLocalSheet(),
-    engine: await databaseEngineForSpec(databaseGroupName),
-  });
-  setSheetStatement(sheetCreate, sql);
-  const sheet = await useSheetV1Store().createSheet(
-    params.project.name,
-    sheetCreate
-  );
-
-  const spec = await buildSpecForTarget(
-    databaseGroupName,
-    params,
-    extractSheetUID(sheet.name)
-  );
-  const step = Plan_Step.fromJSON({
-    specs: [spec],
-  });
-  return [step];
-};
-
-export const buildStepsViaChangelist = async (
+const buildSpecsViaChangelist = async (
   databaseNameList: string[],
   changelistResourceName: string,
   params: CreatePlanParams
@@ -181,127 +183,23 @@ export const buildStepsViaChangelist = async (
     changelistResourceName
   );
   const { changes } = changelist;
-
-  await batchGetOrFetchDatabases(databaseNameList);
-  const databaseStore = useDatabaseV1Store();
-  const databaseList = databaseNameList.map((name) =>
-    databaseStore.getDatabaseByName(name)
-  );
-
-  const databaseListGroupByEnvironment = groupBy(
-    databaseList,
-    (db) => db.effectiveEnvironment
-  );
-  const stepList = orderBy(
-    Object.keys(databaseListGroupByEnvironment).map((env) => {
-      const environment = useEnvironmentV1Store().getEnvironmentByName(env);
-      const databases = databaseListGroupByEnvironment[env];
-      return {
-        environment,
-        databases,
-      };
-    }),
-    [(step) => step.environment?.order],
-    ["asc"]
-  );
-
-  const steps: Plan_Step[] = [];
-  for (let i = 0; i < stepList.length; i++) {
-    const step = Plan_Step.fromJSON({});
-    const { databases } = stepList[i];
-    for (let j = 0; j < databases.length; j++) {
-      const db = databases[j];
-      for (let k = 0; k < changes.length; k++) {
-        const change = changes[k];
-        const statement = await generateSQLForChangeToDatabase(change, db);
-        const sheetUID = nextUID();
-        const sheetName = `${params.project.name}/sheets/${sheetUID}`;
-        const sheet = getLocalSheetByName(sheetName);
-        setSheetStatement(sheet, statement);
-        const spec = await buildSpecForTarget(
-          db.name,
-          params,
-          sheetUID,
-          change.version
-        );
-        step.specs.push(spec);
-      }
-    }
-    steps.push(step);
-  }
-
-  return steps;
-};
-
-export const buildSpecForTarget = async (
-  target: string,
-  { project, query }: CreatePlanParams,
-  sheetUID?: string,
-  version?: string
-) => {
-  const sheet = `${project.name}/sheets/${sheetUID ?? nextUID()}`;
-  const template = query.template as IssueType | undefined;
-  const spec = Plan_Spec.fromJSON({
-    id: uuidv4(),
-  });
-  if (template === "bb.issue.database.data.update") {
-    spec.changeDatabaseConfig = Plan_ChangeDatabaseConfig.fromJSON({
-      target,
-      type: Plan_ChangeDatabaseConfig_Type.DATA,
-    });
-    if (query.sheetId) {
-      const sheet = await useSheetV1Store().getOrFetchSheetByUID(
-        query.sheetId,
-        "FULL"
-      );
-      if (sheet) {
-        spec.changeDatabaseConfig.sheet = sheet.name;
-      }
-    }
-    if (!spec.changeDatabaseConfig.sheet) {
-      spec.changeDatabaseConfig.sheet = sheet;
-    }
-    if (version) {
-      spec.changeDatabaseConfig.schemaVersion = version;
+  const specs: Plan_Spec[] = [];
+  for (const db of databaseNameList) {
+    for (const change of changes) {
+      const statement = await generateSQLForChangeToDatabase(change);
+      const sheetUID = getNextLocalSheetUID();
+      const sheetName = `${params.project.name}/sheets/${sheetUID}`;
+      const sheet = getLocalSheetByName(sheetName);
+      setSheetStatement(sheet, statement);
+      const spec = await buildSpecForTargetsV1([db], params, sheetUID);
+      specs.push(spec);
     }
   }
-  if (template === "bb.issue.database.schema.update") {
-    const type = Plan_ChangeDatabaseConfig_Type.MIGRATE;
-    spec.changeDatabaseConfig = Plan_ChangeDatabaseConfig.fromJSON({
-      target,
-      type,
-      sheet,
-    });
-
-    if (query.sheetId) {
-      const remoteSheet = await useSheetV1Store().getOrFetchSheetByUID(
-        query.sheetId,
-        "FULL"
-      );
-      if (remoteSheet) {
-        // make a local copy for remote sheet for further editing
-        console.debug(
-          "copy remote sheet to local for further editing",
-          remoteSheet
-        );
-        const localSheet = getLocalSheetByName(sheet);
-        localSheet.payload = cloneDeep(remoteSheet.payload);
-        const statement = getSheetStatement(remoteSheet);
-        setSheetStatement(localSheet, statement);
-      }
-    }
-
-    if (version) {
-      spec.changeDatabaseConfig.schemaVersion = version;
-    }
-  }
-
-  return spec;
+  return specs;
 };
 
 const maybeSetInitialSQLForSpec = (
   spec: Plan_Spec,
-  key: string,
   params: CreatePlanParams
 ) => {
   const sheet = sheetNameForSpec(spec);
@@ -311,23 +209,12 @@ const maybeSetInitialSQLForSpec = (
     // If the sheet is a remote sheet, ignore initial SQL in URL query
     return;
   }
+  const target = head(targetsForSpec(spec));
   // Priority: sqlMap[key] -> sql -> nothing
-  const sql = params.initialSQL.sqlMap?.[key] ?? params.initialSQL.sql ?? "";
+  const sql =
+    params.initialSQL.sqlMap?.[target || ""] ?? params.initialSQL.sql ?? "";
   if (sql) {
     const sheetEntity = getLocalSheetByName(sheet);
     setSheetStatement(sheetEntity, sql);
   }
-};
-
-const hasInitialSQL = (initialSQL?: InitialSQL) => {
-  if (!initialSQL) {
-    return false;
-  }
-  if (typeof initialSQL.sql === "string") {
-    return true;
-  }
-  if (typeof initialSQL.sqlMap === "object") {
-    return true;
-  }
-  return false;
 };

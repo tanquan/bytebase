@@ -1,5 +1,5 @@
 <template>
-  <div ref="containerRef" class="pb-6 lg:flex">
+  <div class="pb-6 lg:flex">
     <div class="text-left lg:w-1/4">
       <div class="flex items-center space-x-2">
         <h1 class="text-2xl font-bold">
@@ -8,7 +8,10 @@
       </div>
     </div>
     <div class="flex-1 mt-4 lg:px-4 lg:mt-0">
-      <WorkspaceMode v-model:mode="state.databaseChangeMode" />
+      <WorkspaceMode
+        v-model:mode="state.databaseChangeMode"
+        :disabled="!allowEdit"
+      />
     </div>
 
     <BBModal
@@ -41,7 +44,7 @@
 
 <script lang="ts" setup>
 import { NButton } from "naive-ui";
-import { computed, reactive, ref } from "vue";
+import { computed, reactive } from "vue";
 import { BBModal } from "@/bbkit";
 import { router } from "@/router";
 import { WORKSPACE_ROUTE_LANDING } from "@/router/dashboard/workspaceRoutes";
@@ -79,7 +82,6 @@ const props = defineProps<{
 }>();
 
 const settingV1Store = useSettingV1Store();
-const containerRef = ref<HTMLDivElement>();
 
 const state = reactive<LocalState>(getInitialState());
 

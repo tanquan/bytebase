@@ -1,5 +1,3 @@
-import { head } from "lodash-es";
-import type { ButtonProps } from "naive-ui";
 import { t } from "@/plugins/i18n";
 import { useCurrentUserV1 } from "@/store";
 import { userNamePrefix } from "@/store/modules/v1/common";
@@ -12,6 +10,9 @@ import {
   hasWorkspacePermissionV2,
   isUserIncludedInList,
 } from "@/utils";
+import { head } from "lodash-es";
+import type { ButtonProps } from "naive-ui";
+import { projectOfIssue } from "../utils";
 
 export type TaskRolloutAction =
   | "ROLLOUT" // NOT_STARTED -> PENDING
@@ -32,7 +33,6 @@ export const PrimaryTaskRolloutActionList: TaskRolloutAction[] = [
 export const SecondaryTaskRolloutActionList: TaskRolloutAction[] = ["SKIP"];
 
 export const CancelableTaskTypeList: Task_Type[] = [
-  Task_Type.DATABASE_SCHEMA_BASELINE,
   Task_Type.DATABASE_DATA_UPDATE,
   Task_Type.DATABASE_SCHEMA_UPDATE,
   Task_Type.DATABASE_SCHEMA_UPDATE_SDL,
@@ -82,7 +82,7 @@ export const taskRolloutActionDisplayName = (
 ) => {
   switch (action) {
     case "ROLLOUT":
-      return task?.type === Task_Type.DATABASE_DATA_EXPORT
+      return task?.type === Task_Type.DATABASE_EXPORT
         ? t("common.export")
         : t("common.rollout");
     case "CANCEL":
@@ -136,14 +136,14 @@ export const allowUserToApplyTaskRolloutAction = (
 ) => {
   const me = useCurrentUserV1();
   // For data export issues, only the creator can take actions.
-  if (issue.type === Issue_Type.DATABASE_DATA_EXPORT) {
+  if (issue.type === Issue_Type.DATABASE_EXPORT) {
     return issue.creator === `${userNamePrefix}${me.value.email}`;
   }
 
   // Only for users with permission to create task runs.
   if (
     hasWorkspacePermissionV2("bb.taskRuns.create") ||
-    hasProjectPermissionV2(issue.projectEntity, "bb.taskRuns.create")
+    hasProjectPermissionV2(projectOfIssue(issue), "bb.taskRuns.create")
   ) {
     return true;
   }

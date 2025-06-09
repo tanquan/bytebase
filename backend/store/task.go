@@ -5,15 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/store/model"
 	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
@@ -25,19 +22,16 @@ type TaskMessage struct {
 
 	// Related fields
 	PipelineID     int
-	StageID        int
 	InstanceID     string
-	EnvironmentID  string // This is the stage.
+	Environment    string
 	DatabaseName   *string
 	TaskRunRawList []*TaskRunMessage
 
 	// Domain specific fields
-	Type    base.TaskType
-	Payload *storepb.TaskPayload
-	// TODO(p0ny): deprecate
-	EarliestAllowedAt *time.Time
+	Type    storepb.Task_Type
+	Payload *storepb.Task
 
-	LatestTaskRunStatus base.TaskRunStatus
+	LatestTaskRunStatus storepb.TaskRun_Status
 }
 
 func (t *TaskMessage) GetDatabaseName() string {
@@ -57,14 +51,14 @@ type TaskFind struct {
 
 	// Related fields
 	PipelineID   *int
-	StageID      *int
+	Environment  *string
 	InstanceID   *string
 	DatabaseName *string
 
 	// Domain specific fields
-	TypeList *[]base.TaskType
+	TypeList *[]storepb.Task_Type
 
-	LatestTaskRunStatusList *[]base.TaskRunStatus
+	LatestTaskRunStatusList *[]storepb.TaskRun_Status
 }
 
 // TaskPatch is the API message for patching a task.
@@ -76,16 +70,14 @@ type TaskPatch struct {
 	UpdaterID int
 
 	// Domain specific fields
-	DatabaseName            *string
-	EarliestAllowedTS       *time.Time
-	UpdateEarliestAllowedTS bool
-	Type                    *base.TaskType
+	DatabaseName *string
+	Type         *storepb.Task_Type
 
-	SheetID               *int
-	SchemaVersion         *string
-	ExportFormat          *storepb.ExportFormat
-	ExportPassword        *string
-	PreUpdateBackupDetail *storepb.PreUpdateBackupDetail
+	SheetID           *int
+	SchemaVersion     *string
+	ExportFormat      *storepb.ExportFormat
+	ExportPassword    *string
+	EnablePriorBackup *bool
 
 	// Flags for gh-ost.
 	Flags *map[string]string
@@ -165,61 +157,52 @@ func (s *Store) FindBlockingTaskByVersion(ctx context.Context, pipelineUID int, 
 func (*Store) createTasks(ctx context.Context, txn *sql.Tx, creates ...*TaskMessage) ([]*TaskMessage, error) {
 	query := `INSERT INTO task (
 			pipeline_id,
-			stage_id,
 			instance,
 			db_name,
+			environment,
 			type,
-			payload,
-			earliest_allowed_at
+			payload
 		) SELECT
 			unnest(CAST($1 AS INTEGER[])),
-			unnest(CAST($2 AS INTEGER[])),
+			unnest(CAST($2 AS TEXT[])),
 			unnest(CAST($3 AS TEXT[])),
 			unnest(CAST($4 AS TEXT[])),
 			unnest(CAST($5 AS TEXT[])),
-			unnest(CAST($6 AS JSONB[])),
-			unnest(CAST($7 AS TIMESTAMPTZ[]))
-		RETURNING id, pipeline_id, stage_id, instance, db_name, type, payload, earliest_allowed_at`
+			unnest(CAST($6 AS JSONB[]))
+		RETURNING id, pipeline_id, instance, db_name, environment, type, payload`
 
 	var (
-		pipelineIDs        []int
-		stageIDs           []int
-		instances          []string
-		databases          []*string
-		types              []string
-		payloads           [][]byte
-		earliestAllowedAts []*time.Time
+		pipelineIDs  []int
+		instances    []string
+		databases    []*string
+		environments []string
+		types        []string
+		payloads     [][]byte
 	)
 	for _, create := range creates {
 		if create.Payload == nil {
-			create.Payload = &storepb.TaskPayload{}
+			create.Payload = &storepb.Task{}
 		}
 		payload, err := protojson.Marshal(create.Payload)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to marshal payload")
 		}
 		pipelineIDs = append(pipelineIDs, create.PipelineID)
-		stageIDs = append(stageIDs, create.StageID)
 		instances = append(instances, create.InstanceID)
 		databases = append(databases, create.DatabaseName)
-		types = append(types, string(create.Type))
+		types = append(types, create.Type.String())
+		environments = append(environments, create.Environment)
 		payloads = append(payloads, payload)
-		if create.EarliestAllowedAt == nil {
-			earliestAllowedAts = append(earliestAllowedAts, nil)
-		} else {
-			earliestAllowedAts = append(earliestAllowedAts, create.EarliestAllowedAt)
-		}
 	}
 
 	var tasks []*TaskMessage
 	rows, err := txn.QueryContext(ctx, query,
 		pipelineIDs,
-		stageIDs,
 		instances,
 		databases,
+		environments,
 		types,
 		payloads,
-		earliestAllowedAts,
 	)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to query")
@@ -227,24 +210,25 @@ func (*Store) createTasks(ctx context.Context, txn *sql.Tx, creates ...*TaskMess
 	defer rows.Close()
 	for rows.Next() {
 		task := &TaskMessage{}
-		var earliestAllowedAt sql.NullTime
 		var payload []byte
+		var typeString string
 		if err := rows.Scan(
 			&task.ID,
 			&task.PipelineID,
-			&task.StageID,
 			&task.InstanceID,
 			&task.DatabaseName,
-			&task.Type,
+			&task.Environment,
+			&typeString,
 			&payload,
-			&earliestAllowedAt,
 		); err != nil {
 			return nil, errors.Wrapf(err, "failed to scan rows")
 		}
-		if earliestAllowedAt.Valid {
-			task.EarliestAllowedAt = &earliestAllowedAt.Time
+		if typeValue, ok := storepb.Task_Type_value[typeString]; ok {
+			task.Type = storepb.Task_Type(typeValue)
+		} else {
+			return nil, errors.Errorf("invalid task type string: %s", typeString)
 		}
-		taskPayload := &storepb.TaskPayload{}
+		taskPayload := &storepb.Task{}
 		if err := common.ProtojsonUnmarshaler.Unmarshal(payload, taskPayload); err != nil {
 			return nil, errors.Wrap(err, "failed to unmarshal plan config")
 		}
@@ -269,8 +253,8 @@ func (*Store) listTasksTx(ctx context.Context, txn *sql.Tx, find *TaskFind) ([]*
 	if v := find.PipelineID; v != nil {
 		where, args = append(where, fmt.Sprintf("task.pipeline_id = $%d", len(args)+1)), append(args, *v)
 	}
-	if v := find.StageID; v != nil {
-		where, args = append(where, fmt.Sprintf("task.stage_id = $%d", len(args)+1)), append(args, *v)
+	if v := find.Environment; v != nil {
+		where, args = append(where, fmt.Sprintf("task.environment = $%d", len(args)+1)), append(args, *v)
 	}
 	if v := find.InstanceID; v != nil {
 		where, args = append(where, fmt.Sprintf("task.instance = $%d", len(args)+1)), append(args, *v)
@@ -279,30 +263,33 @@ func (*Store) listTasksTx(ctx context.Context, txn *sql.Tx, find *TaskFind) ([]*
 		where, args = append(where, fmt.Sprintf("task.db_name = $%d", len(args)+1)), append(args, *v)
 	}
 	if v := find.LatestTaskRunStatusList; v != nil {
+		var statusStrings []string
+		for _, status := range *v {
+			statusStrings = append(statusStrings, status.String())
+		}
 		where = append(where, fmt.Sprintf("latest_task_run.status = ANY($%d)", len(args)+1))
-		args = append(args, *v)
+		args = append(args, statusStrings)
 	}
 	if v := find.TypeList; v != nil {
 		var list []string
 		for _, taskType := range *v {
 			list = append(list, fmt.Sprintf("$%d", len(args)+1))
-			args = append(args, taskType)
+			args = append(args, taskType.String())
 		}
 		where = append(where, fmt.Sprintf("task.type in (%s)", strings.Join(list, ",")))
 	}
 
-	args = append(args, base.TaskRunNotStarted)
+	args = append(args, storepb.TaskRun_NOT_STARTED.String())
 	rows, err := txn.QueryContext(ctx, fmt.Sprintf(`
 		SELECT
 			task.id,
 			task.pipeline_id,
-			task.stage_id,
 			task.instance,
 			task.db_name,
+			task.environment,
 			latest_task_run.status AS latest_task_run_status,
 			task.type,
-			task.payload,
-			task.earliest_allowed_at
+			task.payload
 		FROM task
 		LEFT JOIN LATERAL (
 			SELECT COALESCE(
@@ -327,25 +314,32 @@ func (*Store) listTasksTx(ctx context.Context, txn *sql.Tx, find *TaskFind) ([]*
 	var tasks []*TaskMessage
 	for rows.Next() {
 		task := &TaskMessage{}
-		var earliestAllowedAt sql.NullTime
 		var payload []byte
+		var latestTaskRunStatusString string
+		var typeString string
 		if err := rows.Scan(
 			&task.ID,
 			&task.PipelineID,
-			&task.StageID,
 			&task.InstanceID,
 			&task.DatabaseName,
-			&task.LatestTaskRunStatus,
-			&task.Type,
+			&task.Environment,
+			&latestTaskRunStatusString,
+			&typeString,
 			&payload,
-			&earliestAllowedAt,
 		); err != nil {
 			return nil, err
 		}
-		if earliestAllowedAt.Valid {
-			task.EarliestAllowedAt = &earliestAllowedAt.Time
+		if typeValue, ok := storepb.Task_Type_value[typeString]; ok {
+			task.Type = storepb.Task_Type(typeValue)
+		} else {
+			return nil, errors.Errorf("invalid task type string: %s", typeString)
 		}
-		taskPayload := &storepb.TaskPayload{}
+		if statusValue, ok := storepb.TaskRun_Status_value[latestTaskRunStatusString]; ok {
+			task.LatestTaskRunStatus = storepb.TaskRun_Status(statusValue)
+		} else {
+			return nil, errors.Errorf("invalid task run status string: %s", latestTaskRunStatusString)
+		}
+		taskPayload := &storepb.Task{}
 		if err := common.ProtojsonUnmarshaler.Unmarshal(payload, taskPayload); err != nil {
 			return nil, errors.Wrap(err, "failed to unmarshal plan config")
 		}
@@ -385,7 +379,7 @@ func (s *Store) UpdateTaskV2(ctx context.Context, patch *TaskPatch) (*TaskMessag
 		set, args = append(set, fmt.Sprintf("db_name = $%d", len(args)+1)), append(args, *v)
 	}
 	if v := patch.Type; v != nil {
-		set, args = append(set, fmt.Sprintf("type = $%d", len(args)+1)), append(args, *v)
+		set, args = append(set, fmt.Sprintf("type = $%d", len(args)+1)), append(args, v.String())
 	}
 	var payloadSet []string
 	if v := patch.SheetID; v != nil {
@@ -400,12 +394,8 @@ func (s *Store) UpdateTaskV2(ctx context.Context, patch *TaskPatch) (*TaskMessag
 	if v := patch.ExportPassword; v != nil {
 		payloadSet, args = append(payloadSet, fmt.Sprintf(`jsonb_build_object('password', $%d::TEXT)`, len(args)+1)), append(args, *v)
 	}
-	if v := patch.PreUpdateBackupDetail; v != nil {
-		jsonb, err := json.Marshal(v)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to marshal preUpdateBackupDetail")
-		}
-		payloadSet, args = append(payloadSet, fmt.Sprintf(`jsonb_build_object('preUpdateBackupDetail', $%d::JSONB)`, len(args)+1)), append(args, jsonb)
+	if v := patch.EnablePriorBackup; v != nil {
+		payloadSet, args = append(payloadSet, fmt.Sprintf(`jsonb_build_object('enablePriorBackup', $%d::BOOLEAN)`, len(args)+1)), append(args, *v)
 	}
 	if v := patch.Flags; v != nil {
 		jsonb, err := json.Marshal(v)
@@ -417,13 +407,6 @@ func (s *Store) UpdateTaskV2(ctx context.Context, patch *TaskPatch) (*TaskMessag
 	if len(payloadSet) != 0 {
 		set = append(set, fmt.Sprintf(`payload = payload || %s`, strings.Join(payloadSet, "||")))
 	}
-	if patch.UpdateEarliestAllowedTS {
-		if patch.EarliestAllowedTS == nil {
-			set = append(set, "earliest_allowed_at = null")
-		} else {
-			set, args = append(set, fmt.Sprintf("earliest_allowed_at = $%d", len(args)+1)), append(args, *patch.EarliestAllowedTS)
-		}
-	}
 	args = append(args, patch.ID)
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -433,35 +416,36 @@ func (s *Store) UpdateTaskV2(ctx context.Context, patch *TaskPatch) (*TaskMessag
 	defer tx.Rollback()
 
 	task := &TaskMessage{}
-	var earliestAllowedAt sql.NullTime
 	var payload []byte
+	var typeString string
 	if err := tx.QueryRowContext(ctx, fmt.Sprintf(`
 		UPDATE task
 		SET `+strings.Join(set, ", ")+`
 		WHERE id = $%d
-		RETURNING id, pipeline_id, stage_id, instance, db_name, type, payload, earliest_allowed_at
+		RETURNING id, pipeline_id, instance, db_name, environment, type, payload
 	`, len(args)),
 		args...,
 	).Scan(
 		&task.ID,
 		&task.PipelineID,
-		&task.StageID,
 		&task.InstanceID,
 		&task.DatabaseName,
-		&task.Type,
+		&task.Environment,
+		&typeString,
 		&payload,
-		&earliestAllowedAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, &common.Error{Code: common.NotFound, Err: errors.Errorf("task not found with ID %d", patch.ID)}
 		}
 		return nil, err
 	}
-
-	if earliestAllowedAt.Valid {
-		task.EarliestAllowedAt = &earliestAllowedAt.Time
+	if typeValue, ok := storepb.Task_Type_value[typeString]; ok {
+		task.Type = storepb.Task_Type(typeValue)
+	} else {
+		return nil, errors.Errorf("invalid task type string: %s", typeString)
 	}
-	taskPayload := &storepb.TaskPayload{}
+
+	taskPayload := &storepb.Task{}
 	if err := common.ProtojsonUnmarshaler.Unmarshal(payload, taskPayload); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal plan config")
 	}
@@ -493,40 +477,45 @@ func (s *Store) BatchSkipTasks(ctx context.Context, taskUIDs []int, comment stri
 // 2. are not skipped
 // 3. are associated with an open issue or no issue
 // 4. are in an environment that has auto rollout enabled
-// 5. are in the stage that is the first among the selected stages in the pipeline
+// 5. are the first task in the pipeline for their environment
 // 6. are not data export tasks.
 func (s *Store) ListTasksToAutoRollout(ctx context.Context, environments []string) ([]int, error) {
 	rows, err := s.db.QueryContext(ctx, `
 	SELECT
 		task.pipeline_id,
-		task.stage_id,
+		task.environment,
 		task.id
 	FROM task
-	LEFT JOIN stage ON stage.id = task.stage_id
 	LEFT JOIN pipeline ON pipeline.id = task.pipeline_id
 	LEFT JOIN issue ON issue.pipeline_id = pipeline.id
 	WHERE NOT EXISTS (SELECT 1 FROM task_run WHERE task_run.task_id = task.id)
-	AND task.type != 'bb.task.database.data.export'
+	AND task.type != 'DATABASE_EXPORT'
 	AND COALESCE((task.payload->>'skipped')::BOOLEAN, FALSE) IS FALSE
 	AND COALESCE(issue.status, 'OPEN') = 'OPEN'
-	AND stage.environment = ANY($1)
-	`, environments)
+	AND task.environment = ANY($1)
+	ORDER BY task.pipeline_id, task.id`, environments)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	pipelineStageTasks := map[int]map[int][]int{}
+	// Group tasks by pipeline and environment, keeping only the first task per environment
+	pipelineEnvFirstTask := map[int]map[string]int{}
 	for rows.Next() {
-		var pipeline, stage, task int
-		if err := rows.Scan(&pipeline, &stage, &task); err != nil {
+		var pipeline int
+		var environment string
+		var task int
+		if err := rows.Scan(&pipeline, &environment, &task); err != nil {
 			return nil, err
 		}
 
-		if _, ok := pipelineStageTasks[pipeline]; !ok {
-			pipelineStageTasks[pipeline] = map[int][]int{}
+		if _, ok := pipelineEnvFirstTask[pipeline]; !ok {
+			pipelineEnvFirstTask[pipeline] = map[string]int{}
 		}
-		pipelineStageTasks[pipeline][stage] = append(pipelineStageTasks[pipeline][stage], task)
+		// Keep only the first task for each environment
+		if _, exists := pipelineEnvFirstTask[pipeline][environment]; !exists {
+			pipelineEnvFirstTask[pipeline][environment] = task
+		}
 	}
 
 	if err := rows.Err(); err != nil {
@@ -534,17 +523,10 @@ func (s *Store) ListTasksToAutoRollout(ctx context.Context, environments []strin
 	}
 
 	var ids []int
-	for pipeline := range pipelineStageTasks {
-		minStage := math.MaxInt32
-		for stage := range pipelineStageTasks[pipeline] {
-			if stage < minStage {
-				minStage = stage
-			}
+	for _, envTasks := range pipelineEnvFirstTask {
+		for _, taskID := range envTasks {
+			ids = append(ids, taskID)
 		}
-		if minStage == math.MaxInt32 {
-			continue
-		}
-		ids = append(ids, pipelineStageTasks[pipeline][minStage]...)
 	}
 
 	sort.Slice(ids, func(i, j int) bool {

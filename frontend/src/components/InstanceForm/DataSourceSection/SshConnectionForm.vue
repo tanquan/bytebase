@@ -12,7 +12,7 @@
     </NRadio>
   </div>
 
-  <template v-if="state.type === 'TUNNEL' || state.type === 'TUNNEL+PK'">
+  <template v-if="state.type !== 'NONE'">
     <div
       class="sm:col-span-1 sm:col-start-1 mt-4 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-4"
     >
@@ -68,46 +68,35 @@
         />
       </div>
     </div>
-    <div
-      v-if="state.type === 'TUNNEL+PK'"
-      class="mt-4 sm:col-span-3 sm:col-start-1"
-    >
+    <div class="mt-4 sm:col-span-3 sm:col-start-1">
       <div class="mt-2 sm:col-span-1 sm:col-start-1 flex flex-col">
         <label for="sshPrivateKey" class="textlabel block">
           {{ $t("data-source.ssh.ssh-key") }}
+          ({{ t("common.optional") }})
         </label>
         <DroppableTextarea
           v-model:value="state.value.sshPrivateKey"
           :resizable="false"
           :disabled="disabled"
+          :placeholder="$t('common.write-only')"
           class="w-full h-24 mt-2 whitespace-pre-wrap"
         />
       </div>
     </div>
   </template>
-
-  <FeatureModal
-    feature="bb.feature.instance-ssh-connection"
-    :open="state.showFeatureModal"
-    :instance="instance"
-    @cancel="state.showFeatureModal = false"
-  />
 </template>
 
 <script lang="ts" setup>
-import { cloneDeep } from "lodash-es";
-import { NInput, NRadio } from "naive-ui";
-import { reactive, computed, watch } from "vue";
-import { useI18n } from "vue-i18n";
-import { FeatureModal } from "@/components/FeatureGuard";
 import DroppableTextarea from "@/components/misc/DroppableTextarea.vue";
-import { useSubscriptionV1Store } from "@/store";
 import type { Instance } from "@/types/proto/v1/instance_service";
 import { onlyAllowNumber } from "@/utils";
+import { NInput, NRadio } from "naive-ui";
+import { reactive, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
-const SshTypes = ["NONE", "TUNNEL", "TUNNEL+PK"] as const;
+const SshTypes = ["NONE", "TUNNEL+PK"] as const;
 
-type SshType = "NONE" | "TUNNEL" | "TUNNEL+PK";
+type SshType = (typeof SshTypes)[number];
 
 type WithSshOptions = {
   sshHost?: string;
@@ -120,8 +109,6 @@ type WithSshOptions = {
 type LocalState = {
   type: SshType;
   value: WithSshOptions;
-  tab: "TUNNEL" | "TUNNEL+PK";
-  showFeatureModal: boolean;
 };
 
 const props = defineProps<{
@@ -138,34 +125,11 @@ const { t } = useI18n();
 
 const state = reactive<LocalState>({
   type: guessSshType(props.value),
-  value: {
-    sshHost: props.value.sshHost,
-    sshPort: props.value.sshPort,
-    sshUser: props.value.sshUser,
-    sshPassword: props.value.sshPassword,
-    sshPrivateKey: props.value.sshPrivateKey,
-  },
-  tab: "TUNNEL",
-  showFeatureModal: false,
-});
-
-const hasSSHConnectionFeature = computed(() => {
-  return useSubscriptionV1Store().hasInstanceFeature(
-    "bb.feature.instance-ssh-connection",
-    props.instance
-  );
+  value: {},
 });
 
 const handleSelectType = (type: SshType, checked: boolean) => {
   if (!checked) return;
-
-  if (!hasSSHConnectionFeature.value) {
-    if (type !== "NONE") {
-      state.type = "NONE";
-      state.showFeatureModal = true;
-      return;
-    }
-  }
 
   state.type = type;
 };
@@ -182,6 +146,9 @@ watch(
       sshPassword: props.value.sshPassword,
       sshPrivateKey: props.value.sshPrivateKey,
     };
+  },
+  {
+    immediate: true,
   }
 );
 
@@ -189,7 +156,7 @@ watch(
 watch(
   () => state.value,
   (localValue) => {
-    emit("change", cloneDeep(localValue));
+    emit("change", { ...localValue });
   },
   { deep: true }
 );
@@ -203,17 +170,11 @@ watch(
       state.value.sshUser = "";
       state.value.sshPassword = "";
       state.value.sshPrivateKey = "";
-    } else if (type === "TUNNEL") {
-      state.value.sshPrivateKey = "";
-      state.tab = "TUNNEL";
     }
   }
 );
 
 function getSshTypeLabel(type: SshType): string {
-  if (type === "TUNNEL") {
-    return t("data-source.ssh-type.tunnel");
-  }
   if (type === "TUNNEL+PK") {
     return t("data-source.ssh-type.tunnel-and-private-key");
   }
@@ -222,8 +183,7 @@ function getSshTypeLabel(type: SshType): string {
 
 function guessSshType(value: WithSshOptions): SshType {
   if (value.sshPort) {
-    if (value.sshPrivateKey) return "TUNNEL+PK";
-    return "TUNNEL";
+    return "TUNNEL+PK";
   }
   return "NONE";
 }

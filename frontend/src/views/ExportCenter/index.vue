@@ -41,7 +41,6 @@
             :loading="loading"
             :issue-list="list"
             :highlight-text="state.params.query"
-            :show-project="!specificProject"
           />
         </template>
       </PagedTable>
@@ -169,7 +168,7 @@ const overrideSearchScopeIdList = computed(() => {
 
 const mergedIssueFilter = computed(() => {
   return buildIssueFilterBySearchParams(dataExportIssueSearchParams.value, {
-    type: Issue_Type.DATABASE_DATA_EXPORT,
+    type: Issue_Type.DATABASE_EXPORT,
   });
 });
 

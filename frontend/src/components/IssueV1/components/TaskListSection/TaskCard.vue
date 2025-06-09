@@ -58,6 +58,7 @@ import { twMerge } from "tailwind-merge";
 import { computed } from "vue";
 import { databaseForTask } from "@/components/Rollout/RolloutDetail";
 import { InstanceV1Name } from "@/components/v2";
+import { useCurrentProjectV1 } from "@/store";
 import { isValidDatabaseName } from "@/types";
 import { Plan_ChangeDatabaseConfig_Type } from "@/types/proto/v1/plan_service";
 import { Task } from "@/types/proto/v1/rollout_service";
@@ -72,6 +73,7 @@ const props = defineProps<{
 }>();
 
 const { isCreating, issue, selectedTask, events } = useIssueContext();
+const { project } = useCurrentProjectV1();
 const selected = computed(() => props.task === selectedTask.value);
 
 const schemaVersion = computed(() => {
@@ -82,7 +84,7 @@ const schemaVersion = computed(() => {
   }
 
   // Always show the schema version for tasks from a release source.
-  if (issue.value.planEntity?.releaseSource?.release) {
+  if ((issue.value.planEntity?.specs?.filter(spec => spec.changeDatabaseConfig?.release)??[]).length > 0) {
     return v;
   }
   if (isCreating.value) return "";
@@ -108,9 +110,7 @@ const taskClass = computed(() => {
   return classes;
 });
 
-const database = computed(() =>
-  databaseForTask(issue.value.projectEntity, props.task)
-);
+const database = computed(() => databaseForTask(project.value, props.task));
 const { instance } = useInstanceForTask(props.task);
 
 const onClickTask = (task: Task) => {

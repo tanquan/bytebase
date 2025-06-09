@@ -10,7 +10,6 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
 )
@@ -23,8 +22,8 @@ type ProjectWebhookMessage struct {
 	Title string
 	// URL is the webhook URL.
 	URL string
-	// ActivityList is the list of activities that the webhook is interested in.
-	ActivityList []string
+	// Events is the list of activities that the webhook is interested in.
+	Events []string
 	// Output only fields.
 	//
 	// ID is the unique identifier of the project webhook.
@@ -39,18 +38,18 @@ type UpdateProjectWebhookMessage struct {
 	Title *string
 	// URL is the webhook URL.
 	URL *string
-	// ActivityList is the list of activities that the webhook is interested in.
-	ActivityList []string
-	Payload      *storepb.ProjectWebhookPayload
+	// Events is the list of activities that the webhook is interested in.
+	Events  []string
+	Payload *storepb.ProjectWebhookPayload
 }
 
 // FindProjectWebhookMessage is the message for finding project webhooks,
 // if all fields are nil, it will list all project webhooks.
 type FindProjectWebhookMessage struct {
-	ID           *int
-	ProjectID    *string
-	URL          *string
-	ActivityType *base.ActivityType
+	ID        *int
+	ProjectID *string
+	URL       *string
+	EventType *common.EventType
 }
 
 // CreateProjectWebhookV2 creates an instance of ProjectWebhook.
@@ -61,7 +60,7 @@ func (s *Store) CreateProjectWebhookV2(ctx context.Context, projectID string, cr
 			type,
 			name,
 			url,
-			activity_list,
+			event_list,
 			payload
 		)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -77,12 +76,12 @@ func (s *Store) CreateProjectWebhookV2(ctx context.Context, projectID string, cr
 	}
 
 	projectWebhook := ProjectWebhookMessage{
-		Type:         create.Type,
-		Title:        create.Title,
-		URL:          create.URL,
-		ActivityList: create.ActivityList,
-		ProjectID:    create.ProjectID,
-		Payload:      create.Payload,
+		Type:      create.Type,
+		Title:     create.Title,
+		URL:       create.URL,
+		Events:    create.Events,
+		ProjectID: create.ProjectID,
+		Payload:   create.Payload,
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -95,7 +94,7 @@ func (s *Store) CreateProjectWebhookV2(ctx context.Context, projectID string, cr
 		create.Type,
 		create.Title,
 		create.URL,
-		create.ActivityList,
+		create.Events,
 		payload,
 	).Scan(
 		&projectWebhook.ID,
@@ -170,8 +169,8 @@ func (s *Store) UpdateProjectWebhookV2(ctx context.Context, projectResourceID st
 	if v := update.URL; v != nil {
 		set, args = append(set, fmt.Sprintf("url = $%d", len(args)+1)), append(args, *v)
 	}
-	if v := update.ActivityList; v != nil {
-		set, args = append(set, fmt.Sprintf("activity_list = $%d", len(args)+1)), append(args, v)
+	if v := update.Events; v != nil {
+		set, args = append(set, fmt.Sprintf("event_list = $%d", len(args)+1)), append(args, v)
 	}
 	if v := update.Payload; v != nil {
 		p, err := protojson.Marshal(v)
@@ -193,7 +192,7 @@ func (s *Store) UpdateProjectWebhookV2(ctx context.Context, projectResourceID st
 	UPDATE project_webhook
 	SET `+strings.Join(set, ", ")+`
 	WHERE id = $%d
-	RETURNING id, project, type, name, url, activity_list, payload
+	RETURNING id, project, type, name, url, event_list, payload
 `, len(args)),
 		args...,
 	).Scan(
@@ -210,7 +209,7 @@ func (s *Store) UpdateProjectWebhookV2(ctx context.Context, projectResourceID st
 		}
 		return nil, err
 	}
-	if err := txtArray.AssignTo(&projectWebhook.ActivityList); err != nil {
+	if err := txtArray.AssignTo(&projectWebhook.Events); err != nil {
 		return nil, err
 	}
 	if err := common.ProtojsonUnmarshaler.Unmarshal(payload, projectWebhook.Payload); err != nil {
@@ -263,7 +262,7 @@ func (*Store) findProjectWebhookImplV2(ctx context.Context, txn *sql.Tx, find *F
 			type,
 			name,
 			url,
-			activity_list,
+			event_list,
 			payload
 		FROM project_webhook
 		WHERE `+strings.Join(where, " AND "),
@@ -293,16 +292,16 @@ func (*Store) findProjectWebhookImplV2(ctx context.Context, txn *sql.Tx, find *F
 			return nil, err
 		}
 
-		if err := txtArray.AssignTo(&projectWebhook.ActivityList); err != nil {
+		if err := txtArray.AssignTo(&projectWebhook.Events); err != nil {
 			return nil, err
 		}
 		if err := common.ProtojsonUnmarshaler.Unmarshal(payload, projectWebhook.Payload); err != nil {
 			return nil, errors.Wrapf(err, "failed to unmarshal")
 		}
 
-		if v := find.ActivityType; v != nil {
-			for _, activity := range projectWebhook.ActivityList {
-				if base.ActivityType(activity) == *v {
+		if v := find.EventType; v != nil {
+			for _, activity := range projectWebhook.Events {
+				if common.EventType(activity) == *v {
 					projectWebhooks = append(projectWebhooks, &projectWebhook)
 					break
 				}

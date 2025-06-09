@@ -42,12 +42,7 @@
     <!-- mobile sidebar -->
     <Drawer :show="mobileSidebarOpen" @close="mobileSidebarOpen = false">
       <div
-        style="
-          min-width: 240px;
-          width: 80vw;
-          max-width: 320px;
-          padding: 0.5rem 0;
-        "
+        style="min-width: 240px; width: 80vw; max-width: 320px; padding: 0.5rem"
       >
         <Sidebar v-if="sidebarMode === 'MOBILE'" />
       </div>
@@ -72,10 +67,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { FeatureAttention } from "@/components/FeatureGuard";
+import { useCurrentProjectV1 } from "@/store";
 import type { Plan, Plan_Spec } from "@/types/proto/v1/plan_service";
 import { type Task } from "@/types/proto/v1/rollout_service";
 import { SQLCheckSection } from "../Plan/components";
-import { providePlanSQLCheckContext } from "../Plan/components/SQLCheckSection/context";
+import { providePlanSQLCheckContext } from "../Plan/components/SQLCheckSection";
 import { provideSidebarContext } from "../Plan/logic";
 import { Drawer } from "../v2";
 import {
@@ -102,6 +98,7 @@ import { specForTask, useIssueContext, usePollIssue } from "./logic";
 
 const containerRef = ref<HTMLElement>();
 const { isCreating, issue, selectedTask, events } = useIssueContext();
+const { project } = useCurrentProjectV1();
 
 const ongoingIssueReviewAction = ref<{
   action: IssueReviewAction;
@@ -136,10 +133,14 @@ events.on("perform-task-rollout-action", async ({ action, tasks }) => {
 });
 
 providePlanSQLCheckContext({
-  project: computed(() => issue.value.projectEntity),
+  project,
   plan: computed(() => issue.value.planEntity as Plan),
   selectedSpec: computed(
-    () => specForTask(issue.value.planEntity, selectedTask.value) as Plan_Spec
+    () =>
+      specForTask(
+        issue.value.planEntity as Plan,
+        selectedTask.value
+      ) as Plan_Spec
   ),
   selectedTask: selectedTask,
 });

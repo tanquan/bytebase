@@ -48,6 +48,7 @@
               style="width: 12rem"
               v-model:value="state.provider"
               :options="providerOptions"
+              :disabled="!allowEdit || !hasAIFeature"
               :consistent-menu-width="true"
             />
           </div>
@@ -164,6 +165,7 @@ import { useSettingV1Store } from "@/store/modules/v1/setting";
 import {
   AISetting,
   AISetting_Provider,
+  Setting_SettingName,
 } from "@/types/proto/v1/setting_service";
 import { FeatureBadge } from "../FeatureGuard";
 
@@ -193,7 +195,7 @@ const state = reactive<LocalState>({
 });
 
 const aiSetting = computed(
-  () => settingV1Store.getSettingByName("bb.ai")?.value?.aiSetting
+  () => settingV1Store.getSettingByName(Setting_SettingName.AI)?.value?.aiSetting
 );
 
 const hasAIFeature = computed(() => hasFeature("bb.feature.ai-assistant"));
@@ -294,7 +296,7 @@ const toggleAIEnabled = (on: boolean) => {
 
 const updateAISetting = async () => {
   await settingV1Store.upsertSetting({
-    name: "bb.ai",
+    name: Setting_SettingName.AI,
     value: {
       aiSetting: AISetting.fromPartial({
         ...(aiSetting.value ?? {}),

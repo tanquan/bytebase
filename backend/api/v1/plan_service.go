@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -12,14 +11,11 @@ import (
 	celast "github.com/google/cel-go/common/ast"
 	celoperators "github.com/google/cel-go/common/operators"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/common/log"
 	"github.com/bytebase/bytebase/backend/component/config"
@@ -244,8 +240,10 @@ func (s *PlanService) CreatePlan(ctx context.Context, request *v1pb.CreatePlanRe
 	if project == nil {
 		return nil, status.Errorf(codes.NotFound, "project not found for id: %v", projectID)
 	}
-	if err := validateSteps(request.Plan.Steps); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to validate plan steps, error: %v", err)
+
+	// Validate plan specs
+	if err := validateSpecs(request.Plan.Specs); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to validate plan specs, error: %v", err)
 	}
 
 	planMessage := &store.PlanMessage{
@@ -255,13 +253,13 @@ func (s *PlanService) CreatePlan(ctx context.Context, request *v1pb.CreatePlanRe
 		Description: request.Plan.Description,
 		Config:      convertPlan(request.Plan),
 	}
-	deployment, err := getPlanDeployment(ctx, s.store, planMessage.Config.GetSteps(), project)
+	deployment, err := getPlanDeployment(ctx, s.store, planMessage.Config.GetSpecs(), project)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get plan deployment snapshot, error: %v", err)
 	}
 	planMessage.Config.Deployment = deployment
 
-	if _, err := GetPipelineCreate(ctx, s.store, s.sheetManager, s.dbFactory, planMessage.Name, planMessage.Config.GetSteps(), deployment, project); err != nil {
+	if _, err := GetPipelineCreate(ctx, s.store, s.sheetManager, s.dbFactory, planMessage.Name, planMessage.Config.GetSpecs(), deployment, project); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to get pipeline from the plan, please check you request, error: %v", err)
 	}
 	plan, err := s.store.CreatePlan(ctx, planMessage, principalID)
@@ -322,7 +320,7 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 		return nil, status.Errorf(codes.NotFound, "plan %q not found", request.Plan.Name)
 	}
 
-	if oldPlan.Config.GetReleaseSource().GetRelease() != "" && slices.Contains(request.UpdateMask.Paths, "steps") {
+	if storePlanConfigHasRelease(oldPlan.Config) && slices.Contains(request.UpdateMask.Paths, "specs") {
 		return nil, status.Errorf(codes.InvalidArgument, "disallowed to update the plan steps because the plan is created from a release")
 	}
 
@@ -344,7 +342,19 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 	}
 
 	var planCheckRunsTrigger bool
-	for _, path := range request.UpdateMask.Paths {
+
+	// Update the deployment in the end because the specs might change.
+	paths := slices.Clone(request.UpdateMask.Paths)
+	slices.SortFunc(paths, func(a, b string) int {
+		if a == "deployment" {
+			return 1
+		}
+		if b == "deployment" {
+			return -1
+		}
+		return strings.Compare(a, b)
+	})
+	for _, path := range paths {
 		switch path {
 		case "title":
 			title := request.Plan.Title
@@ -353,30 +363,35 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 			description := request.Plan.Description
 			planUpdate.Description = &description
 		case "deployment":
-			convertedDeployment := convertPlanDeployment(request.Plan.Deployment)
-			planUpdate.Deployment = &convertedDeployment
-		case "steps":
-			convertedRequestSteps := convertPlanSteps(request.GetPlan().GetSteps())
-			planUpdate.Steps = &convertedRequestSteps
+			specs := oldPlan.Config.GetSpecs()
+			if planUpdate.Specs != nil {
+				specs = *planUpdate.Specs
+			}
+			deployment, err := getPlanDeployment(ctx, s.store, specs, project)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to get plan deployment snapshot, error: %v", err)
+			}
+			planUpdate.Deployment = &deployment
+		case "specs":
+			// Use specs directly for internal storage
+			allSpecs := convertPlanSpecs(request.GetPlan().GetSpecs())
+			planUpdate.Specs = &allSpecs
 
 			if _, err := GetPipelineCreate(ctx,
 				s.store,
 				s.sheetManager,
 				s.dbFactory,
 				oldPlan.Name,
-				convertedRequestSteps,
+				allSpecs,
 				oldPlan.Config.GetDeployment(),
 				project); err != nil {
 				return nil, status.Errorf(codes.InvalidArgument, "failed to get pipeline from the plan, please check you request, error: %v", err)
 			}
 
-			oldSteps := convertToPlanSteps(oldPlan.Config.Steps)
-			issue, err := s.store.GetIssueV2(ctx, &store.FindIssueMessage{PlanUID: &oldPlan.UID})
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "failed to get issue: %v", err)
-			}
+			// Compare specs directly
+			oldSpecs := convertToPlanSpecs(oldPlan.Config.Specs)
 
-			removed, added, updated := diffSpecs(oldSteps, request.Plan.Steps)
+			removed, added, updated := diffSpecsDirectly(oldSpecs, request.Plan.Specs)
 			if len(removed) > 0 {
 				return nil, status.Errorf(codes.InvalidArgument, "cannot remove specs from plan")
 			}
@@ -388,10 +403,8 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 			}
 
 			oldSpecsByID := make(map[string]*v1pb.Plan_Spec)
-			for _, step := range oldSteps {
-				for _, spec := range step.Specs {
-					oldSpecsByID[spec.Id] = spec
-				}
+			for _, spec := range oldSpecs {
+				oldSpecsByID[spec.Id] = spec
 			}
 
 			updatedByID := make(map[string]*v1pb.Plan_Spec)
@@ -399,9 +412,15 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 				updatedByID[spec.Id] = spec
 			}
 
+			// Handle task updates for specs
 			tasksMap := map[int]*store.TaskMessage{}
 			var taskPatchList []*store.TaskPatch
 			var issueCommentCreates []*store.IssueCommentMessage
+
+			issue, err := s.store.GetIssueV2(ctx, &store.FindIssueMessage{PlanUID: &oldPlan.UID})
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to get issue: %v", err)
+			}
 
 			if oldPlan.PipelineUID != nil {
 				tasks, err := s.store.ListTasks(ctx, &store.TaskFind{PipelineID: oldPlan.PipelineUID})
@@ -430,9 +449,9 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 						return nil, status.Errorf(codes.Internal, "failed to get task type from spec, err: %v", err)
 					}
 					if newTaskType != task.Type {
-						taskTypes := []base.TaskType{
-							base.TaskDatabaseSchemaUpdate,
-							base.TaskDatabaseSchemaUpdateGhost,
+						taskTypes := []storepb.Task_Type{
+							storepb.Task_DATABASE_SCHEMA_UPDATE,
+							storepb.Task_DATABASE_SCHEMA_UPDATE_GHOST,
 						}
 						if !slices.Contains(taskTypes, newTaskType) || !slices.Contains(taskTypes, task.Type) {
 							return nil, status.Errorf(codes.InvalidArgument, "task types in %v are allowed to updated, and they are allowed to be changed to %v", taskTypes, taskTypes)
@@ -444,7 +463,7 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 					// Flags for gh-ost.
 					if err := func() error {
 						switch newTaskType {
-						case base.TaskDatabaseSchemaUpdateGhost:
+						case storepb.Task_DATABASE_SCHEMA_UPDATE_GHOST:
 						default:
 							return nil
 						}
@@ -464,48 +483,9 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 						return nil, err
 					}
 
-					// EarliestAllowedTs
-					taskEarliest := int64(0)
-					if task.EarliestAllowedAt != nil {
-						taskEarliest = task.EarliestAllowedAt.Unix()
-					}
-					specEarliest := spec.EarliestAllowedTime.GetSeconds()
-					if specEarliest != taskEarliest {
-						taskPatch.UpdateEarliestAllowedTS = true
-						if specEarliest == 0 {
-							taskPatch.EarliestAllowedTS = nil
-						} else {
-							v := spec.EarliestAllowedTime.AsTime()
-							taskPatch.EarliestAllowedTS = &v
-						}
-						doUpdate = true
-
-						var fromEarliestAllowedTime, toEarliestAllowedTime *timestamppb.Timestamp
-						if task.EarliestAllowedAt != nil {
-							fromEarliestAllowedTime = timestamppb.New(*task.EarliestAllowedAt)
-						}
-						if specEarliest != 0 {
-							toEarliestAllowedTime = spec.EarliestAllowedTime
-						}
-						if issue != nil {
-							issueCommentCreates = append(issueCommentCreates, &store.IssueCommentMessage{
-								IssueUID: issue.UID,
-								Payload: &storepb.IssueCommentPayload{
-									Event: &storepb.IssueCommentPayload_TaskUpdate_{
-										TaskUpdate: &storepb.IssueCommentPayload_TaskUpdate{
-											Tasks:                   []string{common.FormatTask(issue.Project.ResourceID, task.PipelineID, task.StageID, task.ID)},
-											FromEarliestAllowedTime: fromEarliestAllowedTime,
-											ToEarliestAllowedTime:   toEarliestAllowedTime,
-										},
-									},
-								},
-							})
-						}
-					}
-
-					// PreUpdateBackupDetail
+					// Prior Backup
 					if err := func() error {
-						if newTaskType != base.TaskDatabaseDataUpdate {
+						if newTaskType != storepb.Task_DATABASE_DATA_UPDATE {
 							return nil
 						}
 						config, ok := spec.Config.(*v1pb.Plan_Spec_ChangeDatabaseConfig)
@@ -513,53 +493,11 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 							return nil
 						}
 
-						// The target backup database name.
-						// Format: instances/{instance}/databases/{database}
-						var backupDatabaseName *string
-						if config.ChangeDatabaseConfig.PreUpdateBackupDetail == nil {
-							if task.Payload.GetPreUpdateBackupDetail().GetDatabase() != "" {
-								emptyValue := ""
-								backupDatabaseName = &emptyValue
-							}
-						} else {
-							if config.ChangeDatabaseConfig.PreUpdateBackupDetail.Database != task.Payload.GetPreUpdateBackupDetail().GetDatabase() {
-								backupDatabaseName = &config.ChangeDatabaseConfig.PreUpdateBackupDetail.Database
-							}
-						}
-						if backupDatabaseName != nil {
-							if *backupDatabaseName != "" {
-								// If backup is enabled, we need to check if the backup is available for the source database. AKA, the task's target database.
-								sourceDatabaseName := config.ChangeDatabaseConfig.Target
-								instanceID, databaseName, err := common.GetInstanceDatabaseID(sourceDatabaseName)
-								if err != nil {
-									return errors.Wrapf(err, "failed to get instance database id from %q", sourceDatabaseName)
-								}
-								instance, err := s.store.GetInstanceV2(ctx, &store.FindInstanceMessage{ResourceID: &instanceID})
-								if err != nil {
-									return errors.Wrapf(err, "failed to get instance %s", instanceID)
-								}
-								if instance == nil {
-									return status.Errorf(codes.NotFound, "instance %q not found", instanceID)
-								}
-								database, err := s.store.GetDatabaseV2(ctx, &store.FindDatabaseMessage{
-									InstanceID:      &instanceID,
-									DatabaseName:    &databaseName,
-									IsCaseSensitive: store.IsObjectCaseSensitive(instance),
-								})
-								if err != nil {
-									return errors.Wrapf(err, "failed to get database %s", databaseName)
-								}
-								if database == nil {
-									return status.Errorf(codes.NotFound, "database %q not found", databaseName)
-								}
-								if database.Metadata == nil || !database.Metadata.GetBackupAvailable() {
-									return status.Errorf(codes.FailedPrecondition, "backup is not available for database %q", databaseName)
-								}
-							}
-
-							taskPatch.PreUpdateBackupDetail = &storepb.PreUpdateBackupDetail{
-								Database: *backupDatabaseName,
-							}
+						// Check if backup setting has changed.
+						planEnableBackup := config.ChangeDatabaseConfig.GetEnablePriorBackup()
+						taskEnableBackup := task.Payload.GetEnablePriorBackup()
+						if planEnableBackup != taskEnableBackup {
+							taskPatch.EnablePriorBackup = &planEnableBackup
 							doUpdate = true
 						}
 						return nil
@@ -570,9 +508,9 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 					// Sheet
 					if err := func() error {
 						switch newTaskType {
-						case base.TaskDatabaseSchemaUpdate, base.TaskDatabaseSchemaUpdateGhost, base.TaskDatabaseDataUpdate, base.TaskDatabaseDataExport:
+						case storepb.Task_DATABASE_SCHEMA_UPDATE, storepb.Task_DATABASE_SCHEMA_UPDATE_GHOST, storepb.Task_DATABASE_DATA_UPDATE, storepb.Task_DATABASE_EXPORT:
 							var oldSheetName string
-							if newTaskType == base.TaskDatabaseDataExport {
+							if newTaskType == storepb.Task_DATABASE_EXPORT {
 								config, ok := spec.Config.(*v1pb.Plan_Spec_ExportDataConfig)
 								if !ok {
 									return nil
@@ -613,7 +551,7 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 									Payload: &storepb.IssueCommentPayload{
 										Event: &storepb.IssueCommentPayload_TaskUpdate_{
 											TaskUpdate: &storepb.IssueCommentPayload_TaskUpdate{
-												Tasks:     []string{common.FormatTask(issue.Project.ResourceID, task.PipelineID, task.StageID, task.ID)},
+												Tasks:     []string{common.FormatTask(issue.Project.ResourceID, task.PipelineID, task.Environment, task.ID)},
 												FromSheet: &oldSheet,
 												ToSheet:   &newSheet,
 											},
@@ -629,7 +567,7 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 
 					// ExportDataConfig
 					if err := func() error {
-						if newTaskType != base.TaskDatabaseDataExport {
+						if newTaskType != storepb.Task_DATABASE_EXPORT {
 							return nil
 						}
 						config, ok := spec.Config.(*v1pb.Plan_Spec_ExportDataConfig)
@@ -643,22 +581,6 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 						}
 						if (config.ExportDataConfig.Password == nil && task.Payload.GetPassword() != "") || (config.ExportDataConfig.Password != nil && *config.ExportDataConfig.Password != task.Payload.GetPassword()) {
 							taskPatch.ExportPassword = config.ExportDataConfig.Password
-							doUpdate = true
-						}
-						return nil
-					}(); err != nil {
-						return nil, err
-					}
-
-					// version
-					if err := func() error {
-						switch newTaskType {
-						case base.TaskDatabaseSchemaBaseline, base.TaskDatabaseSchemaUpdate, base.TaskDatabaseSchemaUpdateGhost, base.TaskDatabaseDataUpdate:
-						default:
-							return nil
-						}
-						if v := spec.GetChangeDatabaseConfig().GetSchemaVersion(); v != "" && v != task.Payload.GetSchemaVersion() {
-							taskPatch.SchemaVersion = &v
 							doUpdate = true
 						}
 						return nil
@@ -682,7 +604,7 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 					}
 					if issue != nil {
 						// Do not allow to update task if issue is done or canceled.
-						if issue.Status == base.IssueDone || issue.Status == base.IssueCanceled {
+						if issue.Status == storepb.Issue_DONE || issue.Status == storepb.Issue_CANCELED {
 							return nil, status.Errorf(codes.FailedPrecondition, "cannot update task because issue %q is %s", issue.Title, issue.Status)
 						}
 					}
@@ -690,9 +612,9 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 			}
 
 			for _, taskPatch := range taskPatchList {
-				if taskPatch.SheetID != nil || taskPatch.EarliestAllowedTS != nil {
+				if taskPatch.SheetID != nil {
 					task := tasksMap[taskPatch.ID]
-					if task.LatestTaskRunStatus == base.TaskRunPending || task.LatestTaskRunStatus == base.TaskRunRunning || task.LatestTaskRunStatus == base.TaskRunSkipped || task.LatestTaskRunStatus == base.TaskRunDone {
+					if task.LatestTaskRunStatus == storepb.TaskRun_PENDING || task.LatestTaskRunStatus == storepb.TaskRun_RUNNING || task.LatestTaskRunStatus == storepb.TaskRun_SKIPPED || task.LatestTaskRunStatus == storepb.TaskRun_DONE {
 						return nil, status.Errorf(codes.FailedPrecondition, "cannot update plan because task %v is %s", task.ID, task.LatestTaskRunStatus)
 					}
 				}
@@ -700,8 +622,8 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 
 			var doUpdateSheet bool
 			for _, taskPatch := range taskPatchList {
-				// If pre-backup detail has been updated, we need to rerun the plan check runs.
-				if taskPatch.PreUpdateBackupDetail != nil {
+				// If backup setting has been updated, we need to rerun the plan check runs.
+				if taskPatch.EnablePriorBackup != nil {
 					planCheckRunsTrigger = true
 				}
 				if taskPatch.SheetID != nil {
@@ -749,7 +671,7 @@ func (s *PlanService) UpdatePlan(ctx context.Context, request *v1pb.UpdatePlanRe
 			if issue != nil && doUpdateSheet {
 				if err := func() error {
 					issue, err := s.store.UpdateIssueV2(ctx, issue.UID, &store.UpdateIssueMessage{
-						PayloadUpsert: &storepb.IssuePayload{
+						PayloadUpsert: &storepb.Issue{
 							Approval: &storepb.IssuePayloadApproval{
 								ApprovalFindingDone: false,
 							},
@@ -1013,334 +935,123 @@ func (s *PlanService) getUserByIdentifier(ctx context.Context, identifier string
 	return user, nil
 }
 
-func (s *PlanService) PreviewPlan(ctx context.Context, request *v1pb.PreviewPlanRequest) (*v1pb.PreviewPlanResponse, error) {
-	projectID, err := common.GetProjectID(request.Project)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to get project from %v, err: %v", request.Project, err)
-	}
-
-	project, err := s.store.GetProjectV2(ctx, &store.FindProjectMessage{ResourceID: &projectID})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get project, err: %v", err)
-	}
-
-	_, releaseUID, err := common.GetProjectReleaseUID(request.Release)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to get releaseUID from %q, err: %v", request.Release, err)
-	}
-	release, err := s.store.GetRelease(ctx, releaseUID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get release, err: %v", err)
-	}
-	if release == nil {
-		return nil, status.Errorf(codes.NotFound, "release %q not found", request.Release)
-	}
-
-	allDatabases, err := s.store.ListDatabases(ctx, &store.FindDatabaseMessage{ProjectID: &projectID})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to list databases, err: %v", err)
-	}
-	allDatabasesByName := map[string]*store.DatabaseMessage{}
-
-	for _, db := range allDatabases {
-		name := common.FormatDatabase(db.InstanceID, db.DatabaseName)
-		allDatabasesByName[name] = db
-	}
-
-	var databaseTargets, databaseGroupTargets [][]string
-	for _, target := range request.Targets {
-		if instance, database, err := common.GetInstanceDatabaseID(target); err == nil {
-			databaseTargets = append(databaseTargets, []string{instance, database})
-		} else if projectID, databaseGroupID, err := common.GetProjectIDDatabaseGroupID(target); err == nil {
-			databaseGroupTargets = append(databaseGroupTargets, []string{projectID, databaseGroupID})
-		} else {
-			return nil, status.Errorf(codes.InvalidArgument, "unknown target %v", target)
-		}
-	}
-
-	databasesToDeploy := map[string]bool{}
-
-	for _, databaseTarget := range databaseTargets {
-		name := common.FormatDatabase(databaseTarget[0], databaseTarget[1])
-		databasesToDeploy[name] = true
-	}
-
-	for _, databaseGroupTarget := range databaseGroupTargets {
-		projectID, databaseGroupID := databaseGroupTarget[0], databaseGroupTarget[1]
-		if projectID != project.ResourceID {
-			return nil, status.Errorf(codes.InvalidArgument, "databaseGroup target projectID %q doesn't match the projectID of request.project %q", projectID, request.Project)
-		}
-
-		databaseGroup, err := s.store.GetDatabaseGroup(ctx, &store.FindDatabaseGroupMessage{ProjectID: &project.ResourceID, ResourceID: &databaseGroupID})
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get database group %q", databaseGroupID)
-		}
-		if databaseGroup == nil {
-			return nil, errors.Errorf("database group %q not found", databaseGroupID)
-		}
-		matchedDatabases, _, err := utils.GetMatchedAndUnmatchedDatabasesInDatabaseGroup(ctx, databaseGroup, allDatabases)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to find matched databases")
-		}
-		for _, db := range matchedDatabases {
-			name := common.FormatDatabase(db.InstanceID, db.DatabaseName)
-			databasesToDeploy[name] = true
-		}
-	}
-
-	response := &v1pb.PreviewPlanResponse{}
-
-	var allSpecs []*v1pb.Plan_Spec
-	for database := range databasesToDeploy {
-		db, ok := allDatabasesByName[database]
-		if !ok {
-			continue
-		}
-		specs, ooo, abm, err := s.getSpecsForDatabase(ctx, db, release, request.Release, request.AllowOutOfOrder)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to get specs for database, err: %v", err)
-		}
-		if len(ooo.Files) > 0 {
-			response.OutOfOrderFiles = append(response.OutOfOrderFiles, ooo)
-		}
-		if len(abm.Files) > 0 {
-			response.AppliedButModifiedFiles = append(response.AppliedButModifiedFiles, abm)
-		}
-		allSpecs = append(allSpecs, specs...)
-	}
-
-	response.Plan = &v1pb.Plan{
-		Title: fmt.Sprintf("Preview plan for release %q", request.Release),
-		Steps: []*v1pb.Plan_Step{
-			{
-				Title: "",
-				Specs: allSpecs,
-			},
-		},
-		ReleaseSource: &v1pb.Plan_ReleaseSource{
-			Release: request.Release,
-		},
-	}
-
-	return response, nil
-}
-
-func (s *PlanService) getSpecsForDatabase(ctx context.Context, database *store.DatabaseMessage, release *store.ReleaseMessage, releaseName string, allowOoo bool) ([]*v1pb.Plan_Spec, *v1pb.PreviewPlanResponse_DatabaseFiles, *v1pb.PreviewPlanResponse_DatabaseFiles, error) {
-	revisions, err := s.store.ListRevisions(ctx, &store.FindRevisionMessage{InstanceID: &database.InstanceID, DatabaseName: &database.DatabaseName})
-	if err != nil {
-		return nil, nil, nil, errors.Wrapf(err, "failed to list revisions")
-	}
-	return getSpecs(database, revisions, release, releaseName, allowOoo)
-}
-
-func getSpecs(database *store.DatabaseMessage, revisions []*store.RevisionMessage, release *store.ReleaseMessage, releaseName string, allowOoo bool) ([]*v1pb.Plan_Spec, *v1pb.PreviewPlanResponse_DatabaseFiles, *v1pb.PreviewPlanResponse_DatabaseFiles, error) {
-	var specs []*v1pb.Plan_Spec
-	var outOfOrderFiles []string
-	var modifiedFiles []string
-
-	var lastVersion string
-	revisionByVersion := map[string]*store.RevisionMessage{}
-
-	for _, r := range revisions {
-		if lastVersion == "" {
-			lastVersion = r.Version
-		} else if lastVersion < r.Version {
-			lastVersion = r.Version
-		}
-		revisionByVersion[r.Version] = r
-	}
-
-	for _, file := range release.Payload.Files {
-		r, ok := revisionByVersion[file.Version]
-		if ok {
-			// applied, so we will not deploy it.
-			if r.Payload.SheetSha256 != file.SheetSha256 {
-				// It's been modified! warn users.
-				modifiedFiles = append(modifiedFiles, common.FormatReleaseFile(releaseName, file.Id))
-			}
-			continue
-		}
-
-		if lastVersion != "" && lastVersion >= file.Version {
-			// out of order detected
-			outOfOrderFiles = append(outOfOrderFiles, common.FormatReleaseFile(releaseName, file.Id))
-
-			// allowOutOfOrder=false
-			// continue so that we don't add it into the plan.
-			if !allowOoo {
-				continue
-			}
-		}
-
-		spec := &v1pb.Plan_Spec{
-			Id: uuid.NewString(),
-			SpecReleaseSource: &v1pb.Plan_SpecReleaseSource{
-				File: common.FormatReleaseFile(releaseName, file.Id),
-			},
-			Config: &v1pb.Plan_Spec_ChangeDatabaseConfig{
-				ChangeDatabaseConfig: &v1pb.Plan_ChangeDatabaseConfig{
-					Type:          convertReleaseFileChangeTypeToPlanSpecType(file.ChangeType),
-					Target:        common.FormatDatabase(database.InstanceID, database.DatabaseName),
-					Sheet:         file.Sheet,
-					SchemaVersion: file.Version,
-				},
-			},
-		}
-		specs = append(specs, spec)
-	}
-
-	return specs,
-		&v1pb.PreviewPlanResponse_DatabaseFiles{
-			Database: common.FormatDatabase(database.InstanceID, database.DatabaseName),
-			Files:    outOfOrderFiles,
-		},
-		&v1pb.PreviewPlanResponse_DatabaseFiles{
-			Database: common.FormatDatabase(database.InstanceID, database.DatabaseName),
-			Files:    modifiedFiles,
-		},
-		nil
-}
-
-func convertReleaseFileChangeTypeToPlanSpecType(t storepb.ReleasePayload_File_ChangeType) v1pb.Plan_ChangeDatabaseConfig_Type {
-	switch t {
-	case storepb.ReleasePayload_File_CHANGE_TYPE_UNSPECIFIED:
-		return v1pb.Plan_ChangeDatabaseConfig_MIGRATE
-	case storepb.ReleasePayload_File_DDL:
-		return v1pb.Plan_ChangeDatabaseConfig_MIGRATE
-	case storepb.ReleasePayload_File_DDL_GHOST:
-		return v1pb.Plan_ChangeDatabaseConfig_MIGRATE_GHOST
-	case storepb.ReleasePayload_File_DML:
-		return v1pb.Plan_ChangeDatabaseConfig_DATA
-	default:
-		return v1pb.Plan_ChangeDatabaseConfig_MIGRATE
-	}
-}
-
 // diffSpecs check if there are any specs removed, added or updated in the new plan.
 // Only updating sheet is taken into account.
-func diffSpecs(oldSteps []*v1pb.Plan_Step, newSteps []*v1pb.Plan_Step) ([]*v1pb.Plan_Spec, []*v1pb.Plan_Spec, []*v1pb.Plan_Spec) {
-	oldSpecs := make(map[string]*v1pb.Plan_Spec)
-	newSpecs := make(map[string]*v1pb.Plan_Spec)
+func diffSpecsDirectly(oldSpecs []*v1pb.Plan_Spec, newSpecs []*v1pb.Plan_Spec) ([]*v1pb.Plan_Spec, []*v1pb.Plan_Spec, []*v1pb.Plan_Spec) {
+	oldSpecsMap := make(map[string]*v1pb.Plan_Spec)
+	newSpecsMap := make(map[string]*v1pb.Plan_Spec)
 	var removed, added, updated []*v1pb.Plan_Spec
-	for _, step := range oldSteps {
-		for _, spec := range step.Specs {
-			oldSpecs[spec.Id] = spec
+
+	for _, spec := range oldSpecs {
+		oldSpecsMap[spec.Id] = spec
+	}
+	for _, spec := range newSpecs {
+		newSpecsMap[spec.Id] = spec
+	}
+
+	for _, spec := range oldSpecs {
+		if _, ok := newSpecsMap[spec.Id]; !ok {
+			removed = append(removed, spec)
 		}
 	}
-	for _, step := range newSteps {
-		for _, spec := range step.Specs {
-			newSpecs[spec.Id] = spec
+
+	for _, spec := range newSpecs {
+		if oldSpec, ok := oldSpecsMap[spec.Id]; !ok {
+			added = append(added, spec)
+		} else if !cmp.Equal(oldSpec, spec, protocmp.Transform()) {
+			updated = append(updated, spec)
 		}
 	}
-	for _, step := range oldSteps {
-		for _, spec := range step.Specs {
-			if _, ok := newSpecs[spec.Id]; !ok {
-				removed = append(removed, spec)
-			}
-		}
-	}
-	for _, step := range newSteps {
-		for _, spec := range step.Specs {
-			if _, ok := oldSpecs[spec.Id]; !ok {
-				added = append(added, spec)
-			}
-		}
-	}
-	for _, step := range newSteps {
-		for _, spec := range step.Specs {
-			if oldSpec, ok := oldSpecs[spec.Id]; ok {
-				if !cmp.Equal(oldSpec, spec, protocmp.Transform()) {
-					updated = append(updated, spec)
-				}
-			}
-		}
-	}
+
 	return removed, added, updated
 }
 
-func validateSteps(steps []*v1pb.Plan_Step) error {
-	if len(steps) == 0 {
-		return errors.Errorf("the plan has zero step")
+func validateSpecs(specs []*v1pb.Plan_Spec) error {
+	if len(specs) == 0 {
+		return errors.Errorf("the plan has zero spec")
 	}
-	var databaseTarget, databaseGroupTarget int
 	configTypeCount := map[string]int{}
 	seenID := map[string]bool{}
-	for _, step := range steps {
-		if len(step.Specs) == 0 {
-			return errors.Errorf("the plan step has zero spec")
+
+	for _, spec := range specs {
+		id := spec.GetId()
+		if id == "" {
+			return errors.Errorf("spec id cannot be empty")
 		}
-		seenIDInStep := map[string]bool{}
-		for _, spec := range step.Specs {
-			id := spec.GetId()
-			if id == "" {
-				return errors.Errorf("spec id cannot be empty")
-			}
-			if seenID[id] {
-				return errors.Errorf("found duplicate spec id %q", spec.GetId())
-			}
-			seenID[id] = true
-			seenIDInStep[id] = true
-			switch config := spec.Config.(type) {
-			case *v1pb.Plan_Spec_ChangeDatabaseConfig:
-				configTypeCount["ChangeDatabaseConfig"]++
-				c := config.ChangeDatabaseConfig
-				if _, _, err := common.GetInstanceDatabaseID(c.Target); err == nil {
+		if seenID[id] {
+			return errors.Errorf("found duplicate spec id %v", id)
+		}
+		seenID[id] = true
+
+		switch config := spec.Config.(type) {
+		case *v1pb.Plan_Spec_CreateDatabaseConfig:
+			configTypeCount["create_database"]++
+		case *v1pb.Plan_Spec_ChangeDatabaseConfig:
+			configTypeCount["change_database"]++
+			var databaseTarget, databaseGroupTarget int
+			for _, target := range config.ChangeDatabaseConfig.Targets {
+				if _, _, err := common.GetInstanceDatabaseID(target); err == nil {
 					databaseTarget++
-				} else if _, _, err := common.GetProjectIDDatabaseGroupID(c.Target); err == nil {
+				} else if _, _, err := common.GetProjectIDDatabaseGroupID(target); err == nil {
 					databaseGroupTarget++
 				} else {
-					return errors.Errorf("unknown target %q", c.Target)
+					return errors.Errorf("invalid target %v", target)
 				}
-			case *v1pb.Plan_Spec_CreateDatabaseConfig:
-				configTypeCount["CreateDatabaseConfig"]++
-			case *v1pb.Plan_Spec_ExportDataConfig:
-				configTypeCount["ExportDataConfig"]++
-			default:
-				return errors.Errorf("unexpected config type %T", spec.Config)
 			}
+			// Disallow mixing database and database group targets in the same spec.
+			if databaseTarget > 0 && databaseGroupTarget > 0 {
+				return errors.Errorf("found databaseTarget and databaseGroupTarget, expect only one kind")
+			}
+		case *v1pb.Plan_Spec_ExportDataConfig:
+			configTypeCount["export_data"]++
+		default:
+			return errors.Errorf("invalid spec type")
 		}
 	}
-
 	if len(configTypeCount) > 1 {
-		msg := "expect one kind of config, found"
-		for k, v := range configTypeCount {
-			msg += fmt.Sprintf(" %v %v", v, k)
-		}
-		return errors.New(msg)
-	}
-
-	if databaseGroupTarget > 0 && databaseTarget > 0 {
-		return errors.Errorf("found databaseGroupTarget and databaseTarget, expect only one kind")
+		return errors.Errorf("plan contains multiple types of spec configurations (%v), but each plan must contain only one type", len(configTypeCount))
 	}
 	return nil
 }
 
-func getPlanSpecDatabaseGroups(steps []*storepb.PlanConfig_Step) []string {
+func getPlanSpecDatabaseGroups(specs []*storepb.PlanConfig_Spec) []string {
 	var databaseGroups []string
-	for _, step := range steps {
-		for _, spec := range step.Specs {
-			if target := spec.GetChangeDatabaseConfig().GetTarget(); target != "" {
-				if _, _, err := common.GetProjectIDDatabaseGroupID(target); err == nil {
-					databaseGroups = append(databaseGroups, target)
-				}
+	for _, spec := range specs {
+		if _, ok := spec.Config.(*storepb.PlanConfig_Spec_ChangeDatabaseConfig); !ok {
+			continue
+		}
+		for _, target := range spec.GetChangeDatabaseConfig().GetTargets() {
+			if _, _, err := common.GetProjectIDDatabaseGroupID(target); err == nil {
+				databaseGroups = append(databaseGroups, target)
 			}
 		}
 	}
 	return databaseGroups
 }
 
-func getPlanDeployment(ctx context.Context, s *store.Store, steps []*storepb.PlanConfig_Step, project *store.ProjectMessage) (*storepb.PlanConfig_Deployment, error) {
-	snapshot := &storepb.PlanConfig_Deployment{}
-
+// getAllEnvironmentIDs returns all environment IDs from the store.
+func getAllEnvironmentIDs(ctx context.Context, s *store.Store) ([]string, error) {
 	environments, err := s.GetEnvironmentSetting(ctx)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to list environments")
 	}
+	var environmentIDs []string
 	for _, e := range environments.GetEnvironments() {
-		snapshot.Environments = append(snapshot.Environments, e.Id)
+		environmentIDs = append(environmentIDs, e.Id)
 	}
+	return environmentIDs, nil
+}
 
-	databaseGroups := getPlanSpecDatabaseGroups(steps)
+func getPlanDeployment(ctx context.Context, s *store.Store, specs []*storepb.PlanConfig_Spec, project *store.ProjectMessage) (*storepb.PlanConfig_Deployment, error) {
+	snapshot := &storepb.PlanConfig_Deployment{}
+
+	environmentIDs, err := getAllEnvironmentIDs(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	snapshot.Environments = environmentIDs
+
+	databaseGroups := getPlanSpecDatabaseGroups(specs)
 
 	allDatabases, err := s.ListDatabases(ctx, &store.FindDatabaseMessage{ProjectID: &project.ResourceID})
 	if err != nil {
@@ -1383,26 +1094,42 @@ func getPlanDeployment(ctx context.Context, s *store.Store, steps []*storepb.Pla
 }
 
 func planHasRelease(plan *v1pb.Plan) bool {
-	return plan.GetReleaseSource().GetRelease() != ""
+	for _, spec := range plan.GetSpecs() {
+		if c, ok := spec.Config.(*v1pb.Plan_Spec_ChangeDatabaseConfig); ok {
+			if c.ChangeDatabaseConfig.Release != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
-func getTaskTypeFromSpec(spec *v1pb.Plan_Spec) (base.TaskType, error) {
+func storePlanConfigHasRelease(plan *storepb.PlanConfig) bool {
+	for _, spec := range plan.GetSpecs() {
+		if c, ok := spec.Config.(*storepb.PlanConfig_Spec_ChangeDatabaseConfig); ok {
+			if c.ChangeDatabaseConfig.Release != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func getTaskTypeFromSpec(spec *v1pb.Plan_Spec) (storepb.Task_Type, error) {
 	switch s := spec.Config.(type) {
 	case *v1pb.Plan_Spec_CreateDatabaseConfig:
-		return base.TaskDatabaseCreate, nil
+		return storepb.Task_DATABASE_CREATE, nil
 	case *v1pb.Plan_Spec_ChangeDatabaseConfig:
 		switch s.ChangeDatabaseConfig.Type {
-		case v1pb.Plan_ChangeDatabaseConfig_BASELINE:
-			return base.TaskDatabaseSchemaBaseline, nil
 		case v1pb.Plan_ChangeDatabaseConfig_DATA:
-			return base.TaskDatabaseDataUpdate, nil
+			return storepb.Task_DATABASE_DATA_UPDATE, nil
 		case v1pb.Plan_ChangeDatabaseConfig_MIGRATE:
-			return base.TaskDatabaseSchemaUpdate, nil
+			return storepb.Task_DATABASE_SCHEMA_UPDATE, nil
 		case v1pb.Plan_ChangeDatabaseConfig_MIGRATE_GHOST:
-			return base.TaskDatabaseSchemaUpdateGhost, nil
+			return storepb.Task_DATABASE_SCHEMA_UPDATE_GHOST, nil
 		}
 	case *v1pb.Plan_Spec_ExportDataConfig:
-		return base.TaskDatabaseDataExport, nil
+		return storepb.Task_DATABASE_EXPORT, nil
 	}
-	return "", errors.Errorf("unknown spec config type")
+	return storepb.Task_TASK_TYPE_UNSPECIFIED, errors.Errorf("unknown spec config type")
 }

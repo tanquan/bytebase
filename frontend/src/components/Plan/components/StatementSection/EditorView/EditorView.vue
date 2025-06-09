@@ -4,29 +4,25 @@
       <div class="flex items-center gap-x-4">
         <div class="flex items-center gap-x-1 text-sm font-medium">
           <span
-            :class="isEmpty(state.statement) ? 'text-red-600' : 'text-control'"
+            class="text-base font-medium"
+            :class="isEmpty(state.statement) ? 'text-red-600' : ''"
           >
             {{ statementTitle }}
           </span>
           <span v-if="isCreating" class="text-red-600">*</span>
           <NButton
             v-if="!isCreating && !hasFeature('bb.feature.sql-review')"
-            size="tiny"
+            size="small"
             @click.prevent="state.showFeatureModal = true"
           >
             🎈{{ $t("sql-review.unlock-full-feature") }}
           </NButton>
         </div>
       </div>
-
       <div class="flex items-center justify-end gap-x-2">
         <template v-if="isCreating">
-          <FormatOnSaveCheckbox
-            v-model:value="formatOnSave"
-            :language="language"
-          />
           <SQLUploadButton
-            size="tiny"
+            size="small"
             :loading="state.isUploadingFile"
             @update:sql="handleUpdateStatement"
           >
@@ -42,7 +38,7 @@
                 <template #trigger>
                   <NButton
                     v-if="!isSheetOversize"
-                    size="tiny"
+                    size="small"
                     tag="div"
                     :disabled="denyEditStatementReasons.length > 0"
                     @click.prevent="beginEdit"
@@ -52,7 +48,7 @@
                   <!-- for oversized sheets, only allow to upload and overwrite the sheet -->
                   <SQLUploadButton
                     v-else
-                    size="tiny"
+                    size="small"
                     :loading="state.isUploadingFile"
                     @update:sql="handleUpdateStatementAndOverwrite"
                   >
@@ -66,12 +62,8 @@
             </template>
           </template>
           <template v-else>
-            <FormatOnSaveCheckbox
-              v-model:value="formatOnSave"
-              :language="language"
-            />
             <SQLUploadButton
-              size="tiny"
+              size="small"
               :loading="state.isUploadingFile"
               @update:sql="handleUpdateStatement"
             >
@@ -79,7 +71,7 @@
             </SQLUploadButton>
             <NButton
               v-if="state.isEditing"
-              size="tiny"
+              size="small"
               :disabled="!allowSaveSQL"
               @click.prevent="saveEdit"
             >
@@ -87,7 +79,7 @@
             </NButton>
             <NButton
               v-if="state.isEditing"
-              size="tiny"
+              size="small"
               quaternary
               @click.prevent="cancelEdit"
             >
@@ -196,7 +188,7 @@ import { cloneDeep, head, isEmpty } from "lodash-es";
 import { ExpandIcon } from "lucide-vue-next";
 import { NButton, NTooltip, useDialog } from "naive-ui";
 import { v1 as uuidv1 } from "uuid";
-import { computed, h, reactive, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { BBAttention, BBModal } from "@/bbkit";
 import { FeatureModal } from "@/components/FeatureGuard";
@@ -207,28 +199,29 @@ import {
   createEmptyLocalSheet,
   databaseEngineForSpec,
   databaseForSpec,
-  isGroupingChangeSpec,
 } from "@/components/Plan/logic";
 import { usePlanContext } from "@/components/Plan/logic";
 import DownloadSheetButton from "@/components/Sheet/DownloadSheetButton.vue";
 import SQLUploadButton from "@/components/misc/SQLUploadButton.vue";
 import { planServiceClient } from "@/grpcweb";
-import { hasFeature, pushNotification, useSheetV1Store } from "@/store";
+import {
+  hasFeature,
+  pushNotification,
+  useCurrentProjectV1,
+  useSheetV1Store,
+} from "@/store";
 import type { SQLDialect } from "@/types";
-import { EMPTY_ID, dialectOfEngineV1 } from "@/types";
-import type { Plan_Spec } from "@/types/proto/v1/plan_service";
+import { dialectOfEngineV1 } from "@/types";
 import { Sheet } from "@/types/proto/v1/sheet_service";
 import {
-  defer,
   getSheetStatement,
   setSheetStatement,
   useInstanceV1EditorLanguage,
   getStatementSize,
-  flattenSpecList,
 } from "@/utils";
 import { usePlanSQLCheckContext } from "../../SQLCheckSection/context";
+import useSelectedSpec from "../../common/useSelectedSpec";
 import { useSQLAdviceMarkers } from "../useSQLAdviceMarkers";
-import FormatOnSaveCheckbox from "./FormatOnSaveCheckbox.vue";
 import type { EditState } from "./useTempEditState";
 import { useTempEditState } from "./useTempEditState";
 
@@ -241,7 +234,9 @@ type LocalState = EditState & {
 const { t } = useI18n();
 const dialog = useDialog();
 const context = usePlanContext();
-const { isCreating, plan, selectedSpec, formatOnSave, events } = context;
+const { project } = useCurrentProjectV1();
+const { isCreating, plan, events } = context;
+const selectedSpec = useSelectedSpec();
 const { resultMap } = usePlanSQLCheckContext();
 const editorContainerElRef = ref<HTMLElement>();
 const monacoEditorRef = ref<InstanceType<typeof MonacoEditor>>();
@@ -256,7 +251,7 @@ const state = reactive<LocalState>({
 });
 
 const database = computed(() => {
-  return databaseForSpec(plan.value.projectEntity, selectedSpec.value);
+  return databaseForSpec(project.value, selectedSpec.value);
 });
 
 const language = useInstanceV1EditorLanguage(
@@ -275,10 +270,7 @@ const statementTitle = computed(() => {
   return language.value === "sql" ? t("common.sql") : t("common.statement");
 });
 const advices = computed(() => {
-  const database = databaseForSpec(
-    plan.value.projectEntity,
-    selectedSpec.value
-  );
+  const database = databaseForSpec(project.value, selectedSpec.value);
   return resultMap.value[database.name]?.advices || [];
 });
 const { markers } = useSQLAdviceMarkers(context, advices);
@@ -369,80 +361,6 @@ const cancelEdit = () => {
   state.isEditing = false;
 };
 
-const chooseUpdateStatementTarget = () => {
-  type Target = "CANCELED" | "SPEC" | "ALL";
-  const d = defer<{ target: Target; specs: Plan_Spec[] }>();
-
-  const targets: Record<Target, Plan_Spec[]> = {
-    CANCELED: [],
-    SPEC: [selectedSpec.value],
-    ALL: flattenSpecList(plan.value),
-  };
-
-  // If there is only one spec, we don't need to ask the user to choose.
-  if (targets.ALL.length === 1) {
-    d.resolve({ target: "SPEC", specs: targets.SPEC });
-    return d.promise;
-  }
-
-  const $d = dialog.create({
-    title: t("issue.update-statement.self", { type: statementTitle.value }),
-    content: t("issue.update-statement.apply-current-change-to"),
-    type: "info",
-    autoFocus: false,
-    closable: false,
-    maskClosable: false,
-    closeOnEsc: false,
-    showIcon: false,
-    action: () => {
-      const finish = (target: Target) => {
-        d.resolve({ target, specs: targets[target] });
-        $d.destroy();
-      };
-
-      const CANCEL = h(
-        NButton,
-        { size: "small", onClick: () => finish("CANCELED") },
-        {
-          default: () => t("common.cancel"),
-        }
-      );
-      const SPEC = h(
-        NButton,
-        { size: "small", onClick: () => finish("SPEC") },
-        {
-          default: () => t("issue.update-statement.target.selected-task"),
-        }
-      );
-      const ALL = h(
-        NButton,
-        { size: "small", onClick: () => finish("ALL") },
-        {
-          default: () => t("issue.update-statement.target.all-tasks"),
-        }
-      );
-
-      const buttons = [CANCEL];
-      // For no grouping change spec, we can choose to update the current spec.
-      if (!isGroupingChangeSpec(selectedSpec.value)) {
-        buttons.push(SPEC);
-      }
-      buttons.push(ALL);
-
-      return h(
-        "div",
-        { class: "flex items-center justify-end gap-x-2" },
-        buttons
-      );
-    },
-    onClose() {
-      d.resolve({ target: "CANCELED", specs: [] });
-    },
-  });
-
-  return d.promise;
-};
-
 const showOverwriteConfirmDialog = () => {
   return new Promise((resolve, reject) => {
     // Show a confirm dialog before replacing if the editing statement is not empty.
@@ -497,30 +415,9 @@ const updateStatement = async (statement: string) => {
   if (!planPatch) {
     return;
   }
-
-  const specsIdList: string[] = [];
-  const { target, specs } = await chooseUpdateStatementTarget();
-  if (target === "CANCELED" || specs.length === 0) {
-    cancelEdit();
-    return;
-  }
-
-  specs.forEach((spec) => {
-    if (spec) {
-      specsIdList.push(spec.id);
-    }
-  });
-
-  const distinctSpecsIds = new Set(
-    specsIdList.filter((id) => id && id !== String(EMPTY_ID))
+  const specsToPatch = planPatch.specs.filter(
+    (spec) => spec.id === selectedSpec.value.id
   );
-  if (distinctSpecsIds.size === 0) {
-    return;
-  }
-
-  const specsToPatch = planPatch.steps
-    .flatMap((step) => step.specs)
-    .filter((spec) => distinctSpecsIds.has(spec.id));
   const sheet = Sheet.fromPartial({
     ...createEmptyLocalSheet(),
     title: plan.value.title,
@@ -535,14 +432,18 @@ const updateStatement = async (statement: string) => {
   for (const spec of specsToPatch) {
     if (spec.changeDatabaseConfig) {
       spec.changeDatabaseConfig.sheet = createdSheet.name;
+    } else if (spec.exportDataConfig) {
+      spec.exportDataConfig.sheet = createdSheet.name;
     } else {
-      console.error("Unexpected spec type", spec);
+      throw new Error(
+        `Unsupported spec type for plan update ${JSON.stringify(spec)}`
+      );
     }
   }
 
   const updatedPlan = await planServiceClient.updatePlan({
     plan: planPatch,
-    updateMask: ["steps"],
+    updateMask: ["specs"],
   });
 
   Object.assign(plan.value, updatedPlan);

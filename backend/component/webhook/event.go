@@ -1,28 +1,14 @@
 package webhook
 
 import (
+	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/store"
 	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
 )
 
-type EventType string
-
-const (
-	EventTypeIssueCreate         = "bb.webhook.event.issue.create"
-	EventTypeIssueUpdate         = "bb.webhook.event.issue.update"
-	EventTypeIssueStatusUpdate   = "bb.webhook.event.issue.status.update"
-	EventTypeIssueCommentCreate  = "bb.webhook.event.issue.comment.create"
-	EventTypeIssueApprovalCreate = "bb.webhook.event.issue.approval.create"
-	EventTypeIssueApprovalPass   = "bb.webhook.event.issue.approval.pass"
-	EventTypeIssueRolloutReady   = "bb.webhook.event.issue.rollout.ready"
-
-	EventTypeStageStatusUpdate   = "bb.webhook.event.stage.status.update"
-	EventTypeTaskRunStatusUpdate = "bb.webhook.event.taskRun.status.update"
-)
-
 type Event struct {
 	Actor   *store.UserMessage
-	Type    EventType
+	Type    common.EventType
 	Comment string
 	// nullable
 	Issue   *Issue
@@ -100,7 +86,7 @@ type EventIssueRolloutReady struct {
 
 type EventStageStatusUpdate struct {
 	StageTitle string
-	StageUID   int
+	StageID    string
 }
 
 type EventTaskRunStatusUpdate struct {

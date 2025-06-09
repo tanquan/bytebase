@@ -3,33 +3,17 @@ syntax = "proto3";
 package bytebase.store;
 
 import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
-import "google/protobuf/timestamp.proto";
 import "store/common.proto";
-import "store/plan_check_run.proto";
 
 option go_package = "generated-go/store";
 
 message PlanConfig {
-  repeated Step steps = 1;
-
-  ReleaseSource release_source = 3;
+  repeated Spec specs = 1;
 
   Deployment deployment = 4;
-
-  message Step {
-    // Use the title if set.
-    // Use a generated title if empty.
-    string title = 2;
-    repeated Spec specs = 1;
-  }
   message Spec {
-    // earliest_allowed_time the earliest execution time of the change.
-    google.protobuf.Timestamp earliest_allowed_time = 4;
     // A UUID4 string that uniquely identifies the Spec.
     string id = 5;
-
-    SpecReleaseSource spec_release_source = 8;
 
     oneof config {
       CreateDatabaseConfig create_database_config = 1;
@@ -55,31 +39,26 @@ message PlanConfig {
     string cluster = 6 [(google.api.field_behavior) = OPTIONAL];
     // owner is the owner of the database. This is only applicable to Postgres for "WITH OWNER <<owner>>".
     string owner = 7 [(google.api.field_behavior) = OPTIONAL];
-    // backup is the resource name of the backup.
-    // Format: instances/{instance}/databases/{database}/backups/{backup-name}
-    string backup = 8 [(google.api.field_behavior) = OPTIONAL];
     // The environment resource.
     // Format: environments/prod where prod is the environment resource ID.
     string environment = 9 [(google.api.field_behavior) = OPTIONAL];
   }
 
   message ChangeDatabaseConfig {
-    reserved 5, 6;
-
-    // The resource name of the target.
-    // Format: instances/{instance-id}/databases/{database-name}.
-    // Format: projects/{project}/databaseGroups/{databaseGroup}.
-    string target = 1;
+    // The list of targets.
+    // Multi-database format: [instances/{instance-id}/databases/{database-name}].
+    // Single database group format: [projects/{project}/databaseGroups/{databaseGroup}].
+    repeated string targets = 10;
     // The resource name of the sheet.
     // Format: projects/{project}/sheets/{sheet}
     string sheet = 2;
+    // The resource name of the release.
+    // Format: projects/{project}/releases/{release}
+    string release = 9;
+
     // Type is the database change type.
     enum Type {
       TYPE_UNSPECIFIED = 0;
-      // Used for establishing schema baseline, this is used when
-      // 1. Onboard the database into Bytebase since Bytebase needs to know the current database schema.
-      // 2. Had schema drift and need to re-establish the baseline.
-      BASELINE = 1;
       // Used for DDL changes including CREATE DATABASE.
       MIGRATE = 2;
       // Used for schema changes via state-based schema migration including CREATE DATABASE.
@@ -90,20 +69,18 @@ message PlanConfig {
       DATA = 6;
     }
     Type type = 3;
-    // schema_version is parsed from file name.
-    // It is automatically generated in the UI workflow.
-    string schema_version = 4;
 
     map<string, string> ghost_flags = 7;
 
     // If set, a backup of the modified data will be created automatically before any changes are applied.
-    optional PreUpdateBackupDetail pre_update_backup_detail = 8;
+    bool enable_prior_backup = 8;
   }
 
   message ExportDataConfig {
-    // The resource name of the target.
-    // Format: instances/{instance-id}/databases/{database-name}
-    string target = 1;
+    // The list of targets.
+    // Multi-database format: [instances/{instance-id}/databases/{database-name}].
+    // Single database group format: [projects/{project}/databaseGroups/{databaseGroup}].
+    repeated string targets = 5;
     // The resource name of the sheet.
     // Format: projects/{project}/sheets/{sheet}
     string sheet = 2;
@@ -112,17 +89,6 @@ message PlanConfig {
     // The zip password provide by users.
     // Leave it empty if no needs to encrypt the zip file.
     optional string password = 4;
-  }
-
-  message ReleaseSource {
-    // The release.
-    // Format: projects/{project}/releases/{release}
-    string release = 1 [(google.api.resource_reference) = {type: "bytebase.com/Release"}];
-  }
-
-  message SpecReleaseSource {
-    // Format: projects/{project}/releases/{release}/files/{id}
-    string file = 1;
   }
 
   message Deployment {

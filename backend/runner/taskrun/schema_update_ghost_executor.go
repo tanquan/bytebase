@@ -110,10 +110,12 @@ func (exec *SchemaUpdateGhostExecutor) RunOnce(ctx context.Context, driverCtx co
 				}
 				defer driver.Close(ctx)
 
+				// Use the backup database name of MySQL as the ghost database name.
+				ghostDBName := common.BackupDatabaseNameOfEngine(storepb.Engine_MYSQL)
 				sql := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`; DROP TABLE IF EXISTS `%s`.`%s`;",
-					"bbdataarchive",
+					ghostDBName,
 					migrationContext.GetGhostTableName(),
-					"bbdataarchive",
+					ghostDBName,
 					migrationContext.GetChangelogTableName(),
 				)
 

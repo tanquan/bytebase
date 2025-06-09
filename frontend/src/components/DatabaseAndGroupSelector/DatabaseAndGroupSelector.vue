@@ -1,5 +1,9 @@
 <template>
-  <NTabs v-model:value="databaseSelectState.changeSource" type="card">
+  <NTabs
+    v-model:value="databaseSelectState.changeSource"
+    type="card"
+    size="small"
+  >
     <NTabPane name="DATABASE" :tab="$t('common.databases')">
       <AdvancedSearch
         v-model:params="searchParams"
@@ -14,6 +18,7 @@
         :custom-click="true"
         :parent="project.name"
         :filter="filter"
+        :size="'small'"
         v-model:selected-database-names="
           databaseSelectState.selectedDatabaseNameList
         "
@@ -61,12 +66,12 @@ import type { DatabaseSelectState } from "./types";
 
 const props = defineProps<{
   project: ComposedProject;
-  databaseSelectState?: DatabaseSelectState;
+  value?: DatabaseSelectState;
 }>();
 
 const emit = defineEmits<{
   (event: "close"): void;
-  (event: "update", state: DatabaseSelectState): void;
+  (event: "update:value", state: DatabaseSelectState): void;
 }>();
 
 const readonlyScopes = computed((): SearchScope[] => [
@@ -83,7 +88,7 @@ const searchParams = ref<SearchParams>({
 });
 
 const databaseSelectState = reactive<DatabaseSelectState>(
-  props.databaseSelectState || {
+  props.value || {
     changeSource: "DATABASE",
     selectedDatabaseNameList: [],
   }
@@ -122,7 +127,7 @@ const scopeOptions = useCommonSearchScopeOptions([...CommonFilterScopeIdList]);
 watch(
   () => databaseSelectState,
   () => {
-    emit("update", databaseSelectState);
+    emit("update:value", databaseSelectState);
   },
   { deep: true }
 );

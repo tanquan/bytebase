@@ -67,7 +67,7 @@ import { BBSpin } from "@/bbkit";
 import { usePlanSQLCheckContext } from "@/components/Plan/components/SQLCheckSection/context";
 import { databaseForTask } from "@/components/Rollout/RolloutDetail";
 import { useVerticalScrollState } from "@/composables/useScrollState";
-import { batchGetOrFetchDatabases } from "@/store";
+import { batchGetOrFetchDatabases, useCurrentProjectV1 } from "@/store";
 import { DEBOUNCE_SEARCH_DELAY } from "@/types";
 import type { Task_Status } from "@/types/proto/v1/rollout_service";
 import type { Advice_Status } from "@/types/proto/v1/sql_service";
@@ -102,7 +102,8 @@ const state = reactive<LocalState>({
 });
 
 const issueContext = useIssueContext();
-const { selectedStage, issue, selectedTask } = issueContext;
+const { selectedStage, selectedTask } = issueContext;
+const { project } = useCurrentProjectV1();
 const { resultMap } = usePlanSQLCheckContext();
 const taskBar = ref<HTMLDivElement>();
 const taskBarScrollState = useVerticalScrollState(taskBar, MAX_LIST_HEIGHT);
@@ -156,10 +157,12 @@ const shouldShowTaskFilter = computed(() => {
 });
 
 const shouldShowCurrentTaskView = computed(() => {
+  if (stageState.value.index === 0) {
+    return false;
+  }
   // Only show the current task view when the selected task is not in the filtered task list.
-  return !filteredTaskList.value.some(
-    (task) => task.name === selectedTask.value.name
-  );
+  const visibleTasks = filteredTaskList.value.slice(0, stageState.value.index);
+  return !visibleTasks.some((task) => task.name === selectedTask.value.name);
 });
 
 const loadMore = useDebounceFn(async () => {
@@ -168,7 +171,7 @@ const loadMore = useDebounceFn(async () => {
 
   const databaseNames = filteredTaskList.value
     .slice(fromIndex, toIndex)
-    .map((task) => databaseForTask(issue.value.projectEntity, task).name);
+    .map((task) => databaseForTask(project.value, task).name);
 
   try {
     await batchGetOrFetchDatabases(databaseNames);

@@ -51,6 +51,7 @@ const columns = computed(
     return [
       {
         type: "selection",
+        hide: !props.allowEdit,
         disabled: (memberBinding: MemberBinding) => {
           return props.selectDisabled(memberBinding);
         },

@@ -27,11 +27,8 @@ export type FeatureType =
   | "bb.feature.branding"
   // Change Workflow
   | "bb.feature.dba-workflow"
-  | "bb.feature.multi-tenancy"
-  | "bb.feature.online-migration"
   | "bb.feature.schema-drift"
   | "bb.feature.sql-review"
-  | "bb.feature.task-schedule-time"
   | "bb.feature.encrypted-secrets"
   | "bb.feature.database-grouping"
   | "bb.feature.schema-template"
@@ -39,9 +36,7 @@ export type FeatureType =
   // Database management
   | "bb.feature.read-replica-connection"
   | "bb.feature.custom-instance-synchronization"
-  | "bb.feature.instance-ssh-connection"
   | "bb.feature.sync-schema-all-versions"
-  | "bb.feature.index-advisor"
   // Policy Control
   | "bb.feature.rollout-policy"
   | "bb.feature.environment-tier-policy"
@@ -63,14 +58,10 @@ export const instanceLimitFeature = new Set<FeatureType>([
   // Change Workflow
   "bb.feature.schema-drift",
   "bb.feature.encrypted-secrets",
-  "bb.feature.task-schedule-time",
-  "bb.feature.online-migration",
   // Database Management
   "bb.feature.read-replica-connection",
-  "bb.feature.instance-ssh-connection",
   "bb.feature.custom-instance-synchronization",
   "bb.feature.sync-schema-all-versions",
-  "bb.feature.index-advisor",
   "bb.feature.database-grouping",
   // Policy Control
   "bb.feature.sensitive-data",

@@ -18,7 +18,6 @@ import (
 	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
 	"github.com/bytebase/bytebase/backend/runner/schemasync"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/plugin/db"
 	"github.com/bytebase/bytebase/backend/plugin/db/oracle"
 	parserbase "github.com/bytebase/bytebase/backend/plugin/parser/base"
@@ -84,7 +83,7 @@ func (exec *DataUpdateExecutor) RunOnce(ctx context.Context, driverCtx context.C
 
 	var priorBackupDetail *storepb.PriorBackupDetail
 	// Check if we should skip backup or not.
-	if base.EngineSupportPriorBackup(instance.Metadata.GetEngine()) {
+	if common.EngineSupportPriorBackup(instance.Metadata.GetEngine()) {
 		var backupErr error
 		priorBackupDetail, backupErr = exec.backupData(ctx, driverCtx, statement, task.Payload, task, issueN, instance, database)
 		if backupErr != nil {
@@ -101,12 +100,12 @@ func (exec *DataUpdateExecutor) RunOnce(ctx context.Context, driverCtx context.C
 					Payload: &storepb.IssueCommentPayload{
 						Event: &storepb.IssueCommentPayload_TaskPriorBackup_{
 							TaskPriorBackup: &storepb.IssueCommentPayload_TaskPriorBackup{
-								Task:  common.FormatTask(issueN.Project.ResourceID, task.PipelineID, task.StageID, task.ID),
+								Task:  common.FormatTask(issueN.Project.ResourceID, task.PipelineID, task.Environment, task.ID),
 								Error: backupErr.Error(),
 							},
 						},
 					},
-				}, base.SystemBotID); err != nil {
+				}, common.SystemBotID); err != nil {
 					slog.Warn("failed to create issue comment", "task", task.ID, log.BBError(err), "backup error", backupErr)
 				}
 			}
@@ -158,19 +157,20 @@ func (exec *DataUpdateExecutor) backupData(
 	ctx context.Context,
 	driverCtx context.Context,
 	originStatement string,
-	payload *storepb.TaskPayload,
+	payload *storepb.Task,
 	task *store.TaskMessage,
 	issueN *store.IssueMessage,
 	instance *store.InstanceMessage,
 	database *store.DatabaseMessage,
 ) (*storepb.PriorBackupDetail, error) {
-	if payload.GetPreUpdateBackupDetail().GetDatabase() == "" {
+	if !payload.GetEnablePriorBackup() {
 		return nil, nil
 	}
 
 	sourceDatabaseName := common.FormatDatabase(database.InstanceID, database.DatabaseName)
 	// Format: instances/{instance}/databases/{database}
-	targetDatabaseName := payload.PreUpdateBackupDetail.Database
+	backupDBName := common.BackupDatabaseNameOfEngine(instance.Metadata.GetEngine())
+	targetDatabaseName := common.FormatDatabase(database.InstanceID, backupDBName)
 	var backupDatabase *store.DatabaseMessage
 	var backupDriver db.Driver
 
@@ -211,6 +211,7 @@ func (exec *DataUpdateExecutor) backupData(
 		GetDatabaseMetadataFunc: BuildGetDatabaseMetadataFunc(exec.store),
 		ListDatabaseNamesFunc:   BuildListDatabaseNamesFunc(exec.store),
 		IsCaseSensitive:         store.IsObjectCaseSensitive(instance),
+		DatabaseName:            database.DatabaseName,
 	}
 	if instance.Metadata.GetEngine() == storepb.Engine_ORACLE {
 		oracleDriver, ok := driver.(*oracle.Driver)
@@ -310,7 +311,7 @@ func (exec *DataUpdateExecutor) backupData(
 				Payload: &storepb.IssueCommentPayload{
 					Event: &storepb.IssueCommentPayload_TaskPriorBackup_{
 						TaskPriorBackup: &storepb.IssueCommentPayload_TaskPriorBackup{
-							Task:     common.FormatTask(issueN.Project.ResourceID, task.PipelineID, task.StageID, task.ID),
+							Task:     common.FormatTask(issueN.Project.ResourceID, task.PipelineID, task.Environment, task.ID),
 							Database: backupDatabaseName,
 							Tables: []*storepb.IssueCommentPayload_TaskPriorBackup_Table{
 								{
@@ -321,7 +322,7 @@ func (exec *DataUpdateExecutor) backupData(
 						},
 					},
 				},
-			}, base.SystemBotID); err != nil {
+			}, common.SystemBotID); err != nil {
 				slog.Warn("failed to create issue comment", "task", task.ID, log.BBError(err))
 			}
 		}
@@ -330,7 +331,7 @@ func (exec *DataUpdateExecutor) backupData(
 	if instance.Metadata.GetEngine() != storepb.Engine_POSTGRES {
 		if err := exec.schemaSyncer.SyncDatabaseSchema(ctx, backupDatabase); err != nil {
 			slog.Error("failed to sync backup database schema",
-				slog.String("database", payload.PreUpdateBackupDetail.Database),
+				slog.String("database", targetDatabaseName),
 				log.BBError(err),
 			)
 		}
@@ -397,7 +398,8 @@ func getPrependStatements(engine storepb.Engine, statement string) (string, erro
 
 	for _, node := range nodes {
 		if n, ok := node.(*ast.VariableSetStmt); ok {
-			if n.Name == "role" {
+			switch n.Name {
+			case "role", "search_path":
 				return n.Text(), nil
 			}
 		}

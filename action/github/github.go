@@ -108,6 +108,8 @@ func buildCommentMessage(resp *v1pb.CheckReleaseResponse) string {
 				warningCount++
 			case v1pb.Advice_ERROR:
 				errorCount++
+			case v1pb.Advice_STATUS_UNSPECIFIED, v1pb.Advice_SUCCESS:
+				// No action needed
 			}
 		}
 	}
@@ -142,6 +144,8 @@ func buildCommentMessage(resp *v1pb.CheckReleaseResponse) string {
 				warningCount++
 			case v1pb.Advice_ERROR:
 				errorCount++
+			case v1pb.Advice_STATUS_UNSPECIFIED, v1pb.Advice_SUCCESS:
+				// No action needed
 			}
 		}
 		counts := []string{}
@@ -191,14 +195,14 @@ func writeAnnotations(resp *v1pb.CheckReleaseResponse) error {
 			_, _ = sb.WriteString(",title=")
 			_, _ = sb.WriteString(advice.Title)
 			_, _ = sb.WriteString(" (")
-			_, _ = sb.WriteString(string(advice.Code))
+			_, _ = sb.WriteString(strconv.Itoa(int(advice.Code)))
 			_, _ = sb.WriteString(")::")
 			_, _ = sb.WriteString(advice.Content)
 			_, _ = sb.WriteString(". Targets: ")
 			_, _ = sb.WriteString(result.Target)
 			_, _ = sb.WriteString(" ")
 			_, _ = sb.WriteString(" https://www.bytebase.com/docs/reference/error-code/advisor#")
-			_, _ = sb.WriteString(string(advice.Code))
+			_, _ = sb.WriteString(strconv.Itoa(int(advice.Code)))
 			fmt.Println(sb.String())
 		}
 	}
@@ -213,6 +217,8 @@ func formatRiskLevel(r v1pb.CheckReleaseResponse_RiskLevel) string {
 		return "🟡 Moderate"
 	case v1pb.CheckReleaseResponse_HIGH:
 		return "🔴 High"
+	case v1pb.CheckReleaseResponse_RISK_LEVEL_UNSPECIFIED:
+		return "⚪ None"
 	default:
 		return "⚪ None"
 	}

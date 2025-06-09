@@ -181,7 +181,7 @@ func convertToReviewConfigMessage(reviewConfig *v1pb.ReviewConfig) (*store.Revie
 }
 
 func (s *ReviewConfigService) convertToV1ReviewConfig(ctx context.Context, reviewConfigMessage *store.ReviewConfigMessage) (*v1pb.ReviewConfig, error) {
-	policyType := base.PolicyTypeTag
+	policyType := storepb.Policy_TAG
 	tagPolicies, err := s.store.ListPoliciesV2(ctx, &store.FindPolicyMessage{
 		Type:    &policyType,
 		ShowAll: false,
@@ -202,12 +202,12 @@ func (s *ReviewConfigService) convertToV1ReviewConfig(ctx context.Context, revie
 		if err := common.ProtojsonUnmarshaler.Unmarshal([]byte(policy.Payload), p); err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to unmarshal tag policy, error %v", err)
 		}
-		if p.Tags[string(base.ReservedTagReviewConfig)] != config.Name {
+		if p.Tags[string(common.ReservedTagReviewConfig)] != config.Name {
 			continue
 		}
 
 		switch policy.ResourceType {
-		case base.PolicyResourceTypeEnvironment:
+		case storepb.Policy_ENVIRONMENT:
 			environmentID, err := common.GetEnvironmentID(policy.Resource)
 			if err != nil {
 				return nil, err
@@ -220,7 +220,7 @@ func (s *ReviewConfigService) convertToV1ReviewConfig(ctx context.Context, revie
 				continue
 			}
 			config.Resources = append(config.Resources, common.FormatEnvironment(environment.Id))
-		case base.PolicyResourceTypeProject:
+		case storepb.Policy_PROJECT:
 			projectID, err := common.GetProjectID(policy.Resource)
 			if err != nil {
 				return nil, err

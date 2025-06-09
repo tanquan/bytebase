@@ -225,11 +225,14 @@
     "summary": "Resumen",
     "errors": "Errores",
     "removed": "Remoto",
-    "options": "Opciones",
     "submit": "Entregar"
   },
   "error-page": {
     "go-back-home": "Volver al inicio"
+  },
+  "refresh-remind": {
+    "title": "Versión obsoleta detectada",
+    "description": "Se ha detectado una versión obsoleta. Por favor, actualice la página."
   },
   "task": {
     "current-task": "Tarea actual",
@@ -248,9 +251,6 @@
       },
       "summary-report": "Informe resumido"
     },
-    "earliest-allowed-time": "Tiempo de lanzamiento más temprano",
-    "earliest-allowed-time-hint": "@:{'task.earliest-allowed-time'} es el momento más temprano para implementar el problema, no se puede implementar antes de este momento; si no se especifica, se ejecuta cuando se cumplen todos los criterios.",
-    "earliest-allowed-time-unset": "No establecido",
     "comment": "Comentario",
     "started": "Iniciado",
     "view-change": "Ver cambio",
@@ -272,6 +272,12 @@
     "action-all-tasks-in-current-stage": "{action} todas las tareas en la etapa actual",
     "cancel-task": "Cancelar tarea | Cancelar tareas",
     "created": "Creado",
+    "run-immediately": "Ejecutar tarea inmediatamente",
+    "scheduled-time": "Hora programada",
+    "select-scheduled-time": "Seleccionar hora programada",
+    "error": {
+      "scheduled-time-must-be-in-the-future": "La hora programada debe ser en el futuro"
+    },
     "online-migration": {
       "self": "Migración en línea",
       "configure-ghost-parameters": "Configurar los parámetros de gh-ost",
@@ -280,8 +286,7 @@
       "error": {
         "nothing-changed": "nada ha cambiado",
         "not-applicable": {
-          "task-doesnt-meet-ghost-requirement": "La tarea no cumple con el requisito de gh-ost",
-          "needs-database-for-saving-temp-data": "Necesita la base de datos ({database}) para guardar tablas temporales."
+          "database-doesnt-meet-ghost-requirement": "La base de datos {database} no cumple con el requisito de gh-ost"
         }
       },
       "advice-split-statement-to-single-online-migration-issue": "Se recomienda dividir esta declaración en un único problema de migración en línea."
@@ -301,7 +306,6 @@
     "license-expired": "Su licencia para {plan} ha expirado el {expireAt}.",
     "license-expires": "Su licencia para {plan} ha caducado el {expireAt}.",
     "trial-expires": "Su prueba gratuita para {plan} caducará en {days} días el {expireAt}.",
-    "trial-expired": "Su prueba gratuita de {plan} ha caducado.",
     "deploy": "Auto Hospedaje",
     "cloud": "Cloud",
     "request-demo": "Reserva una demo de producto de 30 minutos.",
@@ -508,7 +512,7 @@
         },
         "maximum-role-expiration": {
           "self": "Caducidad máxima del rol",
-          "description": "La caducidad máxima de la función es el período máximo que se puede otorgar una función a un usuario.",
+          "description": "La expiración máxima del rol es el período máximo durante el cual se puede otorgar un rol a un usuario y se aplicará a todos los roles del proyecto excepto al propietario del proyecto.",
           "days": "Días)",
           "never-expires": "Nunca expira"
         },
@@ -694,11 +698,6 @@
       "json-format-example": "Ejemplo de formato JSON",
       "view-example": "Ver ejemplo"
     },
-    "release": {
-      "new-version-available": "Nueva versión disponible",
-      "new-version-available-with-tag": "La nueva versión {tag} está disponible",
-      "new-version-content": "¡La nueva versión {tag} está disponible ahora! Consulte nuestra documentación para la instalación."
-    },
     "mail-delivery": {
       "description": "Habilita la entrega de correo para recibir notificaciones por correo electrónico configurando la información del servidor SMTP.",
       "field": {
@@ -714,6 +713,19 @@
       },
       "updated-tip": "Se ha actualizado correctamente la configuración de entrega de correo",
       "tested-tip": "Envío realizado con éxito, por favor revise la bandeja de entrada de {address}."
+    }
+  },
+  "remind": {
+    "release": {
+      "new-version-available": "Nueva versión disponible",
+      "new-version-available-with-tag": "La nueva versión {tag} está disponible",
+      "new-version-content": "¡La nueva versión {tag} está disponible ahora! Consulte nuestra documentación para la instalación."
+    },
+    "role-expire": {
+      "title": "Recordatorio de expiración del rol",
+      "content": "Tus siguientes roles expirarán",
+      "checkbox": "No recordar hasta que haya actualizaciones",
+      "go-to-project": "Ir a la página del proyecto"
     }
   },
   "activity": {
@@ -890,6 +902,7 @@
     "issue-name": "Nombre de la incidencia",
     "grant-request": {
       "export-rows": "número máximo de filas",
+      "select-export-rows": "Seleccionar el máximo de filas de exportación",
       "expired-at": "tiempo de caducidad",
       "all-databases": "todas las bases de datos",
       "all-databases-tip": "Todas las bases de datos actuales y futuras de este proyecto.",
@@ -905,18 +918,9 @@
         "selected-stage": "Etapa seleccionada",
         "all-tasks": "Todas las tareas"
       },
-      "current-change-will-apply-to-all-tasks-in-batch-mode": "En el modo por lotes, el cambio actual se aplicará a todas las tareas.",
-      "current-change-will-apply-to-all-tasks": "El cambio actual se aplicará a todas las tareas."
+      "current-change-will-apply-to-all-tasks-in-batch-mode": "En el modo por lotes, el cambio actual se aplicará a todas las tareas."
     },
-    "not-editable-legacy-issue": "Este problema no es editable porque se creó en una versión anterior de Bytebase",
     "action-anyway": "{action} de todos modos",
-    "disallow-edit-reasons": {
-      "issue-is-done": "La cuestión está hecha",
-      "issue-is-canceled": "La emisión está cancelada.",
-      "task-is-x-status": "La tarea es {status}",
-      "task-is-running-cancel-first": "La tarea se está ejecutando, cancele la tarea antes de cambiar este valor"
-    },
-    "you-are-not-allowed-to-change-this-value": "No tienes permitido cambiar este valor.",
     "sql-check": {
       "sql-checks": "Comprobaciones SQL",
       "not-executed-yet": "Aún no ejecutado",
@@ -940,9 +944,6 @@
       "format": "Formato",
       "encrypt": "Cifrar",
       "file-downloaded": "Archivo Descargado"
-    },
-    "update-rollout-time": {
-      "self": "Hora de implementación de la actualización"
     },
     "task-run": {
       "logs": "Registros",
@@ -991,6 +992,82 @@
     "schema-drift-detected": {
       "self": "Se detectó una desviación del esquema",
       "description": "Las bases de datos seleccionadas presentan una desviación de esquema. Asegúrese de que la desviación sea la esperada y de que sea segura para su aplicación."
+    }
+  },
+  "plan": {
+    "add-spec": "Agregar especificación",
+    "change-type": "Cambiar tipo",
+    "schema-migration": "Migración de esquemas",
+    "schema-migration-description": "Modificar el esquema de la base de datos (DDL)",
+    "data-change": "Cambio de datos",
+    "data-change-description": "Modificar datos (DML)",
+    "select-targets": "Seleccionar objetivos",
+    "overview": {
+      "title": "Descripción general del plan",
+      "description": "Ver y administrar todas las especificaciones de este plan",
+      "total-specs": "Especificaciones totales",
+      "total-targets": "Objetivos totales",
+      "check-status": "Verificar estado",
+      "no-checks": "Sin controles",
+      "affected-resources": "Recursos afectados"
+    },
+    "navigator": {
+      "overview": "Descripción general",
+      "specifications": "Presupuesto",
+      "spec-number": "Especificación {number}",
+      "no-specifications": "Sin especificaciones",
+      "statement-empty": "La declaración está vacía"
+    },
+    "spec": {
+      "type": {
+        "create-database": "Crear base de datos",
+        "schema-change": "Cambio de esquema",
+        "data-change": "Cambio de datos",
+        "ghost-migration": "Migración fantasma",
+        "database-change": "Cambio de base de datos",
+        "export-data": "Exportar datos",
+        "unknown": "Desconocido"
+      },
+      "status": {
+        "pass": "Aprobar",
+        "warn": "Advertir",
+        "error": "Error"
+      }
+    },
+    "targets": {
+      "title": "Objetivos",
+      "no-targets-found": "No se encontraron objetivos",
+      "no-targets": "Sin objetivos",
+      "one-target": "1 objetivo",
+      "multiple-targets": "{count} objetivos",
+      "one-database": "1 base de datos",
+      "multiple-databases": "{count} bases de datos",
+      "database-group": "Grupo de bases de datos",
+      "database-not-found": "Base de datos no encontrada",
+      "environment": "Entorno: {environment}",
+      "type": {
+        "instance": "Instancia",
+        "database": "Base de datos",
+        "database-group": "Grupo de bases de datos"
+      }
+    },
+    "options": {
+      "self": "Opciones",
+      "applies-to-all-tasks": "Se aplica a todas las tareas.",
+      "applies-to-some-tasks": "Se aplica a algunas tareas {count}/{total}",
+      "split-into-multiple-issues-tip": "Si desea configurar diferentes opciones para cada tarea, divídala en varios problemas."
+    },
+    "pre-backup": {
+      "only-some-databases-checked": "Sólo se comprueban algunas bases de datos",
+      "some-databases-not-meeting-requirements": "Algunas bases de datos ({databases}) no cumplen los requisitos",
+      "some-databases-have-issues": "{count} la base de datos tiene problemas | {count} las bases de datos tienen problemas",
+      "configuration-has-issues": "La configuración tiene {count} problemas | La configuración tiene {count} problemas"
+    },
+    "ghost": {
+      "only-some-databases-checked": "Sólo se comprueban algunas bases de datos",
+      "some-databases-not-meeting-requirements": "Algunas bases de datos ({databases}) no cumplen los requisitos",
+      "some-databases-have-issues": "{count} la base de datos tiene problemas | {count} las bases de datos tienen problemas",
+      "configuration-has-issues": "La configuración tiene {count} problemas | La configuración tiene {count} problemas"
     }
   },
   "quick-action": {
@@ -1383,7 +1460,6 @@
     "successfully-transferred-databases": "Bases de datos transferidas exitosamente",
     "nullable": "Anulable",
     "expression": "Expresión",
-    "position": "Posición",
     "unique": "Único",
     "visible": "Visible",
     "comment": "Comentario",
@@ -1484,7 +1560,9 @@
     "foreign-key": {
       "reference": "Referencia"
     },
-    "create-target-database-or-schema-for-backup": "Primero cree la base de datos o el esquema de destino para la copia de seguridad",
+    "checks": "Cheques",
+    "backup-unavailable-for-databases": "La copia de seguridad no está disponible para las bases de datos: {databases}",
+    "engine-not-supported-for-backup": "No se admite la copia de seguridad previa para: {databases}",
     "revision": {
       "self": "Revisión",
       "applied-at": "Aplicado en",
@@ -1505,8 +1583,7 @@
         "self": "Nueva línea base",
         "successfully-established": "Se estableció con éxito una nueva línea base"
       }
-    },
-    "checks": "Cheques"
+    }
   },
   "project": {
     "table": {
@@ -1659,7 +1736,6 @@
       "view-by-roles": "Ver por roles",
       "cannot-remove-last-owner": "No se puede eliminar el último propietario de un proyecto",
       "revoke-role-from-user": "Revocar '{role}' de '{user}'",
-      "assign-reason": "(Opcional) Razón",
       "never-expires": "Nunca caduca",
       "role-description": "El rol de un miembro determina qué puede hacer en el proyecto.",
       "role-never-expires": "Este rol nunca expira.",
@@ -1688,7 +1764,6 @@
       "client-cert": "Certificado del cliente"
     },
     "ssh-type": {
-      "tunnel": "@:{'data-source.ssh.tunnel'}",
       "tunnel-and-private-key": "@:{'data-source.ssh.tunnel'} + @:{'data-source.ssh.private-key'}",
       "none": "Ninguno"
     },
@@ -1807,7 +1882,19 @@
       "batch": "Lote",
       "select-database-group": "Puedes {select-database-group} realizar consultas por lotes",
       "description": "Consulta por lotes {database} bases de datos adicionales y {group} grupos de bases de datos bajo {project}.",
-      "show-or-hide-empty-query-results": "Mostrar/ocultar resultados de consulta vacíos"
+      "show-or-hide-empty-query-results": "Mostrar/ocultar resultados de consulta vacíos",
+      "select-data-source": {
+        "self": "Seleccionar la fuente de datos para el lote",
+        "tooltip": "Encontrará fuentes de datos disponibles con política de restricción y luego aplicará la selección.",
+        "admin": "Administración",
+        "readonly": "Sólo lectura",
+        "not-match": "La fuente de datos no coincide, se esperaba {expect} pero se obtuvo {actual}."
+      }
+    },
+    "batch-export": {
+      "self": "Exportación por lotes",
+      "tooltip": "Seleccione como máximo {max} bases de datos para exportar por lotes los resultados de las últimas consultas",
+      "failed-for-db": "No se pudieron exportar los datos de {db}"
     },
     "execute-query": "Ejecutar consulta",
     "pending-query": "Consulta pendiente",
@@ -2539,15 +2626,8 @@
     "files": "Archivos",
     "create": "Crear lanzamiento",
     "select": "Seleccionar versión",
-    "tasks-to-apply": "Tareas a aplicar",
-    "out-of-order-files": "Archivos fuera de servicio",
-    "applied-but-modifed-files": "Archivos aplicados pero modificados",
-    "allow-out-of-order": "Permitir fuera de servicio",
     "archive-this-release": "Archivar este comunicado",
     "total-files": "Total de {count} archivos",
-    "no-tasks-to-apply": {
-      "self": "No hay tareas para aplicar"
-    },
     "actions": {
       "new-file": "Nuevo archivo",
       "import-from-release": "Importar desde la versión"
@@ -2555,8 +2635,7 @@
     "messages": {
       "succeed-to-create-release": "Tener éxito en crear el lanzamiento",
       "files-will-always-be-sorted-and-executed-in-version-order": "Los archivos siempre se ordenarán y ejecutarán en orden de versión.",
-      "cannot-modify-files-after-created": "No es posible modificar archivos una vez creada la versión.",
-      "bytebase-will-skip-those-files-has-been-applied-on-target-database": "Bytebase omitirá automáticamente aquellos archivos que ya se hayan ejecutado en la base de datos de destino."
+      "cannot-modify-files-after-created": "No es posible modificar archivos una vez creada la versión."
     },
     "usage-description": "El lanzamiento solo se utiliza en GitOps personalizado con integración de API."
   },

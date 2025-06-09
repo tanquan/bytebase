@@ -242,6 +242,15 @@ export interface BatchSyncInstancesRequest {
 export interface BatchSyncInstancesResponse {
 }
 
+export interface BatchUpdateInstancesRequest {
+  /** The request message specifying the resources to update. */
+  requests: UpdateInstanceRequest[];
+}
+
+export interface BatchUpdateInstancesResponse {
+  instances: Instance[];
+}
+
 export interface AddDataSourceRequest {
   /**
    * The name of the instance to add a data source to.
@@ -821,10 +830,6 @@ export const GetInstanceRequest: MessageFns<GetInstanceRequest> = {
     return message;
   },
 
-  fromJSON(object: any): GetInstanceRequest {
-    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
-  },
-
   toJSON(message: GetInstanceRequest): unknown {
     const obj: any = {};
     if (message.name !== "") {
@@ -912,15 +917,6 @@ export const ListInstancesRequest: MessageFns<ListInstancesRequest> = {
     return message;
   },
 
-  fromJSON(object: any): ListInstancesRequest {
-    return {
-      pageSize: isSet(object.pageSize) ? globalThis.Number(object.pageSize) : 0,
-      pageToken: isSet(object.pageToken) ? globalThis.String(object.pageToken) : "",
-      showDeleted: isSet(object.showDeleted) ? globalThis.Boolean(object.showDeleted) : false,
-      filter: isSet(object.filter) ? globalThis.String(object.filter) : "",
-    };
-  },
-
   toJSON(message: ListInstancesRequest): unknown {
     const obj: any = {};
     if (message.pageSize !== 0) {
@@ -996,15 +992,6 @@ export const ListInstancesResponse: MessageFns<ListInstancesResponse> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): ListInstancesResponse {
-    return {
-      instances: globalThis.Array.isArray(object?.instances)
-        ? object.instances.map((e: any) => Instance.fromJSON(e))
-        : [],
-      nextPageToken: isSet(object.nextPageToken) ? globalThis.String(object.nextPageToken) : "",
-    };
   },
 
   toJSON(message: ListInstancesResponse): unknown {
@@ -1087,14 +1074,6 @@ export const CreateInstanceRequest: MessageFns<CreateInstanceRequest> = {
     return message;
   },
 
-  fromJSON(object: any): CreateInstanceRequest {
-    return {
-      instance: isSet(object.instance) ? Instance.fromJSON(object.instance) : undefined,
-      instanceId: isSet(object.instanceId) ? globalThis.String(object.instanceId) : "",
-      validateOnly: isSet(object.validateOnly) ? globalThis.Boolean(object.validateOnly) : false,
-    };
-  },
-
   toJSON(message: CreateInstanceRequest): unknown {
     const obj: any = {};
     if (message.instance !== undefined) {
@@ -1170,13 +1149,6 @@ export const UpdateInstanceRequest: MessageFns<UpdateInstanceRequest> = {
     return message;
   },
 
-  fromJSON(object: any): UpdateInstanceRequest {
-    return {
-      instance: isSet(object.instance) ? Instance.fromJSON(object.instance) : undefined,
-      updateMask: isSet(object.updateMask) ? FieldMask.unwrap(FieldMask.fromJSON(object.updateMask)) : undefined,
-    };
-  },
-
   toJSON(message: UpdateInstanceRequest): unknown {
     const obj: any = {};
     if (message.instance !== undefined) {
@@ -1248,13 +1220,6 @@ export const DeleteInstanceRequest: MessageFns<DeleteInstanceRequest> = {
     return message;
   },
 
-  fromJSON(object: any): DeleteInstanceRequest {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      force: isSet(object.force) ? globalThis.Boolean(object.force) : false,
-    };
-  },
-
   toJSON(message: DeleteInstanceRequest): unknown {
     const obj: any = {};
     if (message.name !== "") {
@@ -1311,10 +1276,6 @@ export const UndeleteInstanceRequest: MessageFns<UndeleteInstanceRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): UndeleteInstanceRequest {
-    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
   },
 
   toJSON(message: UndeleteInstanceRequest): unknown {
@@ -1380,13 +1341,6 @@ export const SyncInstanceRequest: MessageFns<SyncInstanceRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): SyncInstanceRequest {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      enableFullSync: isSet(object.enableFullSync) ? globalThis.Boolean(object.enableFullSync) : false,
-    };
   },
 
   toJSON(message: SyncInstanceRequest): unknown {
@@ -1458,13 +1412,6 @@ export const ListInstanceDatabaseRequest: MessageFns<ListInstanceDatabaseRequest
     return message;
   },
 
-  fromJSON(object: any): ListInstanceDatabaseRequest {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      instance: isSet(object.instance) ? Instance.fromJSON(object.instance) : undefined,
-    };
-  },
-
   toJSON(message: ListInstanceDatabaseRequest): unknown {
     const obj: any = {};
     if (message.name !== "") {
@@ -1525,14 +1472,6 @@ export const ListInstanceDatabaseResponse: MessageFns<ListInstanceDatabaseRespon
     return message;
   },
 
-  fromJSON(object: any): ListInstanceDatabaseResponse {
-    return {
-      databases: globalThis.Array.isArray(object?.databases)
-        ? object.databases.map((e: any) => globalThis.String(e))
-        : [],
-    };
-  },
-
   toJSON(message: ListInstanceDatabaseResponse): unknown {
     const obj: any = {};
     if (message.databases?.length) {
@@ -1585,14 +1524,6 @@ export const SyncInstanceResponse: MessageFns<SyncInstanceResponse> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): SyncInstanceResponse {
-    return {
-      databases: globalThis.Array.isArray(object?.databases)
-        ? object.databases.map((e: any) => globalThis.String(e))
-        : [],
-    };
   },
 
   toJSON(message: SyncInstanceResponse): unknown {
@@ -1649,14 +1580,6 @@ export const BatchSyncInstancesRequest: MessageFns<BatchSyncInstancesRequest> = 
     return message;
   },
 
-  fromJSON(object: any): BatchSyncInstancesRequest {
-    return {
-      requests: globalThis.Array.isArray(object?.requests)
-        ? object.requests.map((e: any) => SyncInstanceRequest.fromJSON(e))
-        : [],
-    };
-  },
-
   toJSON(message: BatchSyncInstancesRequest): unknown {
     const obj: any = {};
     if (message.requests?.length) {
@@ -1700,10 +1623,6 @@ export const BatchSyncInstancesResponse: MessageFns<BatchSyncInstancesResponse> 
     return message;
   },
 
-  fromJSON(_: any): BatchSyncInstancesResponse {
-    return {};
-  },
-
   toJSON(_: BatchSyncInstancesResponse): unknown {
     const obj: any = {};
     return obj;
@@ -1714,6 +1633,114 @@ export const BatchSyncInstancesResponse: MessageFns<BatchSyncInstancesResponse> 
   },
   fromPartial(_: DeepPartial<BatchSyncInstancesResponse>): BatchSyncInstancesResponse {
     const message = createBaseBatchSyncInstancesResponse();
+    return message;
+  },
+};
+
+function createBaseBatchUpdateInstancesRequest(): BatchUpdateInstancesRequest {
+  return { requests: [] };
+}
+
+export const BatchUpdateInstancesRequest: MessageFns<BatchUpdateInstancesRequest> = {
+  encode(message: BatchUpdateInstancesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.requests) {
+      UpdateInstanceRequest.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BatchUpdateInstancesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBatchUpdateInstancesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.requests.push(UpdateInstanceRequest.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  toJSON(message: BatchUpdateInstancesRequest): unknown {
+    const obj: any = {};
+    if (message.requests?.length) {
+      obj.requests = message.requests.map((e) => UpdateInstanceRequest.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<BatchUpdateInstancesRequest>): BatchUpdateInstancesRequest {
+    return BatchUpdateInstancesRequest.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BatchUpdateInstancesRequest>): BatchUpdateInstancesRequest {
+    const message = createBaseBatchUpdateInstancesRequest();
+    message.requests = object.requests?.map((e) => UpdateInstanceRequest.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseBatchUpdateInstancesResponse(): BatchUpdateInstancesResponse {
+  return { instances: [] };
+}
+
+export const BatchUpdateInstancesResponse: MessageFns<BatchUpdateInstancesResponse> = {
+  encode(message: BatchUpdateInstancesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.instances) {
+      Instance.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): BatchUpdateInstancesResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseBatchUpdateInstancesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.instances.push(Instance.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  toJSON(message: BatchUpdateInstancesResponse): unknown {
+    const obj: any = {};
+    if (message.instances?.length) {
+      obj.instances = message.instances.map((e) => Instance.toJSON(e));
+    }
+    return obj;
+  },
+
+  create(base?: DeepPartial<BatchUpdateInstancesResponse>): BatchUpdateInstancesResponse {
+    return BatchUpdateInstancesResponse.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<BatchUpdateInstancesResponse>): BatchUpdateInstancesResponse {
+    const message = createBaseBatchUpdateInstancesResponse();
+    message.instances = object.instances?.map((e) => Instance.fromPartial(e)) || [];
     return message;
   },
 };
@@ -1774,14 +1801,6 @@ export const AddDataSourceRequest: MessageFns<AddDataSourceRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): AddDataSourceRequest {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      dataSource: isSet(object.dataSource) ? DataSource.fromJSON(object.dataSource) : undefined,
-      validateOnly: isSet(object.validateOnly) ? globalThis.Boolean(object.validateOnly) : false,
-    };
   },
 
   toJSON(message: AddDataSourceRequest): unknown {
@@ -1857,13 +1876,6 @@ export const RemoveDataSourceRequest: MessageFns<RemoveDataSourceRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): RemoveDataSourceRequest {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      dataSource: isSet(object.dataSource) ? DataSource.fromJSON(object.dataSource) : undefined,
-    };
   },
 
   toJSON(message: RemoveDataSourceRequest): unknown {
@@ -1957,15 +1969,6 @@ export const UpdateDataSourceRequest: MessageFns<UpdateDataSourceRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): UpdateDataSourceRequest {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      dataSource: isSet(object.dataSource) ? DataSource.fromJSON(object.dataSource) : undefined,
-      updateMask: isSet(object.updateMask) ? FieldMask.unwrap(FieldMask.fromJSON(object.updateMask)) : undefined,
-      validateOnly: isSet(object.validateOnly) ? globalThis.Boolean(object.validateOnly) : false,
-    };
   },
 
   toJSON(message: UpdateDataSourceRequest): unknown {
@@ -2182,28 +2185,6 @@ export const Instance: MessageFns<Instance> = {
     return message;
   },
 
-  fromJSON(object: any): Instance {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      state: isSet(object.state) ? stateFromJSON(object.state) : State.STATE_UNSPECIFIED,
-      title: isSet(object.title) ? globalThis.String(object.title) : "",
-      engine: isSet(object.engine) ? engineFromJSON(object.engine) : Engine.ENGINE_UNSPECIFIED,
-      engineVersion: isSet(object.engineVersion) ? globalThis.String(object.engineVersion) : "",
-      externalLink: isSet(object.externalLink) ? globalThis.String(object.externalLink) : "",
-      dataSources: globalThis.Array.isArray(object?.dataSources)
-        ? object.dataSources.map((e: any) => DataSource.fromJSON(e))
-        : [],
-      environment: isSet(object.environment) ? globalThis.String(object.environment) : "",
-      activation: isSet(object.activation) ? globalThis.Boolean(object.activation) : false,
-      roles: globalThis.Array.isArray(object?.roles) ? object.roles.map((e: any) => InstanceRole.fromJSON(e)) : [],
-      syncInterval: isSet(object.syncInterval) ? Duration.fromJSON(object.syncInterval) : undefined,
-      maximumConnections: isSet(object.maximumConnections) ? globalThis.Number(object.maximumConnections) : 0,
-      syncDatabases: globalThis.Array.isArray(object?.syncDatabases)
-        ? object.syncDatabases.map((e: any) => globalThis.String(e))
-        : [],
-    };
-  },
-
   toJSON(message: Instance): unknown {
     const obj: any = {};
     if (message.name !== "") {
@@ -2394,23 +2375,6 @@ export const DataSourceExternalSecret: MessageFns<DataSourceExternalSecret> = {
     return message;
   },
 
-  fromJSON(object: any): DataSourceExternalSecret {
-    return {
-      secretType: isSet(object.secretType)
-        ? dataSourceExternalSecret_SecretTypeFromJSON(object.secretType)
-        : DataSourceExternalSecret_SecretType.SAECRET_TYPE_UNSPECIFIED,
-      url: isSet(object.url) ? globalThis.String(object.url) : "",
-      authType: isSet(object.authType)
-        ? dataSourceExternalSecret_AuthTypeFromJSON(object.authType)
-        : DataSourceExternalSecret_AuthType.AUTH_TYPE_UNSPECIFIED,
-      appRole: isSet(object.appRole) ? DataSourceExternalSecret_AppRoleAuthOption.fromJSON(object.appRole) : undefined,
-      token: isSet(object.token) ? globalThis.String(object.token) : undefined,
-      engineName: isSet(object.engineName) ? globalThis.String(object.engineName) : "",
-      secretName: isSet(object.secretName) ? globalThis.String(object.secretName) : "",
-      passwordKeyName: isSet(object.passwordKeyName) ? globalThis.String(object.passwordKeyName) : "",
-    };
-  },
-
   toJSON(message: DataSourceExternalSecret): unknown {
     const obj: any = {};
     if (message.secretType !== DataSourceExternalSecret_SecretType.SAECRET_TYPE_UNSPECIFIED) {
@@ -2531,17 +2495,6 @@ export const DataSourceExternalSecret_AppRoleAuthOption: MessageFns<DataSourceEx
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): DataSourceExternalSecret_AppRoleAuthOption {
-    return {
-      roleId: isSet(object.roleId) ? globalThis.String(object.roleId) : "",
-      secretId: isSet(object.secretId) ? globalThis.String(object.secretId) : "",
-      type: isSet(object.type)
-        ? dataSourceExternalSecret_AppRoleAuthOption_SecretTypeFromJSON(object.type)
-        : DataSourceExternalSecret_AppRoleAuthOption_SecretType.SECRET_TYPE_UNSPECIFIED,
-      mountPath: isSet(object.mountPath) ? globalThis.String(object.mountPath) : "",
-    };
   },
 
   toJSON(message: DataSourceExternalSecret_AppRoleAuthOption): unknown {
@@ -3037,66 +2990,6 @@ export const DataSource: MessageFns<DataSource> = {
     return message;
   },
 
-  fromJSON(object: any): DataSource {
-    return {
-      id: isSet(object.id) ? globalThis.String(object.id) : "",
-      type: isSet(object.type) ? dataSourceTypeFromJSON(object.type) : DataSourceType.DATA_SOURCE_UNSPECIFIED,
-      username: isSet(object.username) ? globalThis.String(object.username) : "",
-      password: isSet(object.password) ? globalThis.String(object.password) : "",
-      useSsl: isSet(object.useSsl) ? globalThis.Boolean(object.useSsl) : false,
-      sslCa: isSet(object.sslCa) ? globalThis.String(object.sslCa) : "",
-      sslCert: isSet(object.sslCert) ? globalThis.String(object.sslCert) : "",
-      sslKey: isSet(object.sslKey) ? globalThis.String(object.sslKey) : "",
-      host: isSet(object.host) ? globalThis.String(object.host) : "",
-      port: isSet(object.port) ? globalThis.String(object.port) : "",
-      database: isSet(object.database) ? globalThis.String(object.database) : "",
-      srv: isSet(object.srv) ? globalThis.Boolean(object.srv) : false,
-      authenticationDatabase: isSet(object.authenticationDatabase)
-        ? globalThis.String(object.authenticationDatabase)
-        : "",
-      replicaSet: isSet(object.replicaSet) ? globalThis.String(object.replicaSet) : "",
-      sid: isSet(object.sid) ? globalThis.String(object.sid) : "",
-      serviceName: isSet(object.serviceName) ? globalThis.String(object.serviceName) : "",
-      sshHost: isSet(object.sshHost) ? globalThis.String(object.sshHost) : "",
-      sshPort: isSet(object.sshPort) ? globalThis.String(object.sshPort) : "",
-      sshUser: isSet(object.sshUser) ? globalThis.String(object.sshUser) : "",
-      sshPassword: isSet(object.sshPassword) ? globalThis.String(object.sshPassword) : "",
-      sshPrivateKey: isSet(object.sshPrivateKey) ? globalThis.String(object.sshPrivateKey) : "",
-      authenticationPrivateKey: isSet(object.authenticationPrivateKey)
-        ? globalThis.String(object.authenticationPrivateKey)
-        : "",
-      externalSecret: isSet(object.externalSecret)
-        ? DataSourceExternalSecret.fromJSON(object.externalSecret)
-        : undefined,
-      authenticationType: isSet(object.authenticationType)
-        ? dataSource_AuthenticationTypeFromJSON(object.authenticationType)
-        : DataSource_AuthenticationType.AUTHENTICATION_UNSPECIFIED,
-      clientSecretCredential: isSet(object.clientSecretCredential)
-        ? DataSource_ClientSecretCredential.fromJSON(object.clientSecretCredential)
-        : undefined,
-      saslConfig: isSet(object.saslConfig) ? SASLConfig.fromJSON(object.saslConfig) : undefined,
-      additionalAddresses: globalThis.Array.isArray(object?.additionalAddresses)
-        ? object.additionalAddresses.map((e: any) => DataSource_Address.fromJSON(e))
-        : [],
-      directConnection: isSet(object.directConnection) ? globalThis.Boolean(object.directConnection) : false,
-      region: isSet(object.region) ? globalThis.String(object.region) : "",
-      warehouseId: isSet(object.warehouseId) ? globalThis.String(object.warehouseId) : "",
-      masterName: isSet(object.masterName) ? globalThis.String(object.masterName) : "",
-      masterUsername: isSet(object.masterUsername) ? globalThis.String(object.masterUsername) : "",
-      masterPassword: isSet(object.masterPassword) ? globalThis.String(object.masterPassword) : "",
-      redisType: isSet(object.redisType)
-        ? dataSource_RedisTypeFromJSON(object.redisType)
-        : DataSource_RedisType.REDIS_TYPE_UNSPECIFIED,
-      cluster: isSet(object.cluster) ? globalThis.String(object.cluster) : "",
-      extraConnectionParameters: isObject(object.extraConnectionParameters)
-        ? Object.entries(object.extraConnectionParameters).reduce<{ [key: string]: string }>((acc, [key, value]) => {
-          acc[key] = String(value);
-          return acc;
-        }, {})
-        : {},
-    };
-  },
-
   toJSON(message: DataSource): unknown {
     const obj: any = {};
     if (message.id !== "") {
@@ -3333,14 +3226,6 @@ export const DataSource_ClientSecretCredential: MessageFns<DataSource_ClientSecr
     return message;
   },
 
-  fromJSON(object: any): DataSource_ClientSecretCredential {
-    return {
-      tenantId: isSet(object.tenantId) ? globalThis.String(object.tenantId) : "",
-      clientId: isSet(object.clientId) ? globalThis.String(object.clientId) : "",
-      clientSecret: isSet(object.clientSecret) ? globalThis.String(object.clientSecret) : "",
-    };
-  },
-
   toJSON(message: DataSource_ClientSecretCredential): unknown {
     const obj: any = {};
     if (message.tenantId !== "") {
@@ -3414,13 +3299,6 @@ export const DataSource_Address: MessageFns<DataSource_Address> = {
     return message;
   },
 
-  fromJSON(object: any): DataSource_Address {
-    return {
-      host: isSet(object.host) ? globalThis.String(object.host) : "",
-      port: isSet(object.port) ? globalThis.String(object.port) : "",
-    };
-  },
-
   toJSON(message: DataSource_Address): unknown {
     const obj: any = {};
     if (message.host !== "") {
@@ -3488,13 +3366,6 @@ export const DataSource_ExtraConnectionParametersEntry: MessageFns<DataSource_Ex
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): DataSource_ExtraConnectionParametersEntry {
-    return {
-      key: isSet(object.key) ? globalThis.String(object.key) : "",
-      value: isSet(object.value) ? globalThis.String(object.value) : "",
-    };
   },
 
   toJSON(message: DataSource_ExtraConnectionParametersEntry): unknown {
@@ -3631,20 +3502,6 @@ export const InstanceResource: MessageFns<InstanceResource> = {
     return message;
   },
 
-  fromJSON(object: any): InstanceResource {
-    return {
-      title: isSet(object.title) ? globalThis.String(object.title) : "",
-      engine: isSet(object.engine) ? engineFromJSON(object.engine) : Engine.ENGINE_UNSPECIFIED,
-      engineVersion: isSet(object.engineVersion) ? globalThis.String(object.engineVersion) : "",
-      dataSources: globalThis.Array.isArray(object?.dataSources)
-        ? object.dataSources.map((e: any) => DataSource.fromJSON(e))
-        : [],
-      activation: isSet(object.activation) ? globalThis.Boolean(object.activation) : false,
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      environment: isSet(object.environment) ? globalThis.String(object.environment) : "",
-    };
-  },
-
   toJSON(message: InstanceResource): unknown {
     const obj: any = {};
     if (message.title !== "") {
@@ -3721,10 +3578,6 @@ export const SASLConfig: MessageFns<SASLConfig> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): SASLConfig {
-    return { krbConfig: isSet(object.krbConfig) ? KerberosConfig.fromJSON(object.krbConfig) : undefined };
   },
 
   toJSON(message: SASLConfig): unknown {
@@ -3855,18 +3708,6 @@ export const KerberosConfig: MessageFns<KerberosConfig> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): KerberosConfig {
-    return {
-      primary: isSet(object.primary) ? globalThis.String(object.primary) : "",
-      instance: isSet(object.instance) ? globalThis.String(object.instance) : "",
-      realm: isSet(object.realm) ? globalThis.String(object.realm) : "",
-      keytab: isSet(object.keytab) ? bytesFromBase64(object.keytab) : new Uint8Array(0),
-      kdcHost: isSet(object.kdcHost) ? globalThis.String(object.kdcHost) : "",
-      kdcPort: isSet(object.kdcPort) ? globalThis.String(object.kdcPort) : "",
-      kdcTransportProtocol: isSet(object.kdcTransportProtocol) ? globalThis.String(object.kdcTransportProtocol) : "",
-    };
   },
 
   toJSON(message: KerberosConfig): unknown {
@@ -4429,6 +4270,78 @@ export const InstanceServiceDefinition = {
         },
       },
     },
+    batchUpdateInstances: {
+      name: "BatchUpdateInstances",
+      requestType: BatchUpdateInstancesRequest,
+      requestStream: false,
+      responseType: BatchUpdateInstancesResponse,
+      responseStream: false,
+      options: {
+        _unknownFields: {
+          800010: [
+            new Uint8Array([
+              19,
+              98,
+              98,
+              46,
+              105,
+              110,
+              115,
+              116,
+              97,
+              110,
+              99,
+              101,
+              115,
+              46,
+              117,
+              112,
+              100,
+              97,
+              116,
+              101,
+            ]),
+          ],
+          800016: [new Uint8Array([1])],
+          800024: [new Uint8Array([1])],
+          578365826: [
+            new Uint8Array([
+              30,
+              58,
+              1,
+              42,
+              34,
+              25,
+              47,
+              118,
+              49,
+              47,
+              105,
+              110,
+              115,
+              116,
+              97,
+              110,
+              99,
+              101,
+              115,
+              58,
+              98,
+              97,
+              116,
+              99,
+              104,
+              85,
+              112,
+              100,
+              97,
+              116,
+              101,
+            ]),
+          ],
+        },
+      },
+    },
     addDataSource: {
       name: "AddDataSource",
       requestType: AddDataSourceRequest,
@@ -4687,15 +4600,6 @@ export const InstanceServiceDefinition = {
   },
 } as const;
 
-function bytesFromBase64(b64: string): Uint8Array {
-  const bin = globalThis.atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; ++i) {
-    arr[i] = bin.charCodeAt(i);
-  }
-  return arr;
-}
-
 function base64FromBytes(arr: Uint8Array): string {
   const bin: string[] = [];
   arr.forEach((byte) => {
@@ -4712,18 +4616,9 @@ export type DeepPartial<T> = T extends Builtin ? T
   : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
 
-function isObject(value: any): boolean {
-  return typeof value === "object" && value !== null;
-}
-
-function isSet(value: any): boolean {
-  return value !== null && value !== undefined;
-}
-
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;
   decode(input: BinaryReader | Uint8Array, length?: number): T;
-  fromJSON(object: any): T;
   toJSON(message: T): unknown;
   create(base?: DeepPartial<T>): T;
   fromPartial(object: DeepPartial<T>): T;

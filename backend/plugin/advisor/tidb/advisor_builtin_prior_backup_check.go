@@ -34,7 +34,7 @@ type StatementPriorBackupCheckAdvisor struct {
 
 // Check checks for no mixed DDL and DML.
 func (*StatementPriorBackupCheckAdvisor) Check(ctx context.Context, checkCtx advisor.Context) ([]*storepb.Advice, error) {
-	if checkCtx.PreUpdateBackupDetail == nil || checkCtx.ChangeType != storepb.PlanCheckRunConfig_DML {
+	if !checkCtx.EnablePriorBackup || checkCtx.ChangeType != storepb.PlanCheckRunConfig_DML {
 		return nil, nil
 	}
 
@@ -78,11 +78,12 @@ func (*StatementPriorBackupCheckAdvisor) Check(ctx context.Context, checkCtx adv
 		}
 	}
 
-	if !advisor.DatabaseExists(ctx, checkCtx, extractDatabaseName(checkCtx.PreUpdateBackupDetail.Database)) {
+	databaseName := common.BackupDatabaseNameOfEngine(storepb.Engine_TIDB)
+	if !advisor.DatabaseExists(ctx, checkCtx, databaseName) {
 		adviceList = append(adviceList, &storepb.Advice{
 			Status:        level,
 			Title:         title,
-			Content:       fmt.Sprintf("Need database %q to do prior backup but it does not exist", checkCtx.PreUpdateBackupDetail.Database),
+			Content:       fmt.Sprintf("Need database %q to do prior backup but it does not exist", databaseName),
 			Code:          advisor.DatabaseNotExists.Int32(),
 			StartPosition: common.FirstLinePosition,
 		})
@@ -217,11 +218,6 @@ func equalTable(t1, t2 *table) bool {
 		return false
 	}
 	return t1.database == t2.database && t1.table == t2.table
-}
-
-func extractDatabaseName(databaseUID string) string {
-	segments := strings.Split(databaseUID, "/")
-	return segments[len(segments)-1]
 }
 
 type table struct {

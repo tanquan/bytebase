@@ -156,30 +156,6 @@ func (c *Client) getPlan(planName string) (*v1pb.Plan, error) {
 	return resp, nil
 }
 
-func (c *Client) previewPlan(project string, r *v1pb.PreviewPlanRequest) (*v1pb.PreviewPlanResponse, error) {
-	rb, err := protojson.Marshal(r)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/v1/%s:previewPlan", c.url, project), bytes.NewReader(rb))
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := c.doRequest(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to preview plan")
-	}
-
-	resp := &v1pb.PreviewPlanResponse{}
-	if err := protojsonUnmarshaler.Unmarshal(body, resp); err != nil {
-		return nil, err
-	}
-
-	return resp, nil
-}
-
 func (c *Client) createPlan(project string, r *v1pb.Plan) (*v1pb.Plan, error) {
 	rb, err := protojson.Marshal(r)
 	if err != nil {
@@ -382,6 +358,22 @@ func (c *Client) batchCancelTaskRuns(r *v1pb.BatchCancelTaskRunsRequest) (*v1pb.
 		return nil, errors.Wrapf(err, "failed to batch cancel task runs")
 	}
 	resp := &v1pb.BatchCancelTaskRunsResponse{}
+	if err := protojsonUnmarshaler.Unmarshal(body, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *Client) getActuatorInfo() (*v1pb.ActuatorInfo, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/v1/actuator/info", c.url), nil)
+	if err != nil {
+		return nil, err
+	}
+	body, err := c.doRequest(req)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get actuator info")
+	}
+	resp := &v1pb.ActuatorInfo{}
 	if err := protojsonUnmarshaler.Unmarshal(body, resp); err != nil {
 		return nil, err
 	}

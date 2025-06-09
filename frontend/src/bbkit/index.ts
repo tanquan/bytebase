@@ -4,11 +4,8 @@ import BBAvatar from "./BBAvatar.vue";
 import BBBadge from "./BBBadge.vue";
 import BBBetaBadge from "./BBBetaBadge.vue";
 import BBButtonConfirm from "./BBButtonConfirm.vue";
-import BBDialog from "./BBDialog.vue";
-import { BBGrid } from "./BBGrid";
 import BBModal from "./BBModal.vue";
 import BBSpin from "./BBSpin.vue";
-import { BBTable, BBTableCell, BBTableHeaderCell } from "./BBTable";
 import BBTextField from "./BBTextField.vue";
 
 export * from "./types";
@@ -19,12 +16,7 @@ export {
   BBAvatar,
   BBButtonConfirm,
   BBModal,
-  BBDialog,
   BBSpin,
-  BBTable,
-  BBTableCell,
-  BBTableHeaderCell,
-  BBGrid,
   BBTextField,
   BBBadge,
   BBBetaBadge,

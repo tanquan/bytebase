@@ -10,7 +10,6 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/common/log"
 	"github.com/bytebase/bytebase/backend/component/config"
@@ -19,6 +18,7 @@ import (
 	"github.com/bytebase/bytebase/backend/plugin/db"
 	"github.com/bytebase/bytebase/backend/runner/schemasync"
 	"github.com/bytebase/bytebase/backend/store"
+	"github.com/bytebase/bytebase/backend/store/model"
 	"github.com/bytebase/bytebase/backend/utils"
 	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
 )
@@ -122,7 +122,7 @@ func getMigrationInfo(ctx context.Context, stores *store.Store, profile *config.
 		database:    database,
 		task:        task,
 		version:     schemaVersion,
-		taskRunName: common.FormatTaskRun(pipeline.ProjectID, task.PipelineID, task.StageID, task.ID, taskRunUID),
+		taskRunName: common.FormatTaskRun(pipeline.ProjectID, task.PipelineID, task.Environment, task.ID, taskRunUID),
 		taskRunUID:  taskRunUID,
 		migrateType: migrationType,
 	}
@@ -139,7 +139,7 @@ func getMigrationInfo(ctx context.Context, stores *store.Store, profile *config.
 		mc.sheetName = common.FormatSheet(pipeline.ProjectID, sheet.UID)
 	}
 
-	if task.Type.ChangeDatabasePayload() {
+	if isChangeDatabaseTask(task.Type) {
 		if f := task.Payload.GetTaskReleaseSource().GetFile(); f != "" {
 			project, release, _, err := common.GetProjectReleaseUIDFile(f)
 			if err != nil {
@@ -292,7 +292,7 @@ func doMigrationWithFunc(
 
 	if stateCfg != nil {
 		switch mc.task.Type {
-		case base.TaskDatabaseSchemaUpdate, base.TaskDatabaseDataUpdate:
+		case storepb.Task_DATABASE_SCHEMA_UPDATE, storepb.Task_DATABASE_DATA_UPDATE:
 			switch instance.Metadata.GetEngine() {
 			case storepb.Engine_MYSQL, storepb.Engine_TIDB, storepb.Engine_OCEANBASE,
 				storepb.Engine_STARROCKS, storepb.Engine_DORIS, storepb.Engine_POSTGRES,
@@ -513,6 +513,23 @@ func endMigration(ctx context.Context, storeInstance *store.Store, mc *migrateCo
 				return errors.Wrapf(err, "failed to create revision")
 			}
 			update.RevisionUID = &revision.UID
+
+			// Update database metadata with the version only if the new version is greater
+			metadata := mc.database.Metadata
+			if metadata == nil {
+				metadata = &storepb.DatabaseMetadata{}
+			}
+
+			if shouldUpdateVersion(metadata.Version, mc.version) {
+				metadata.Version = mc.version
+				if _, err := storeInstance.UpdateDatabase(ctx, &store.UpdateDatabaseMessage{
+					InstanceID:   mc.database.InstanceID,
+					DatabaseName: mc.database.DatabaseName,
+					Metadata:     metadata,
+				}); err != nil {
+					return errors.Wrapf(err, "failed to update database metadata with version")
+				}
+			}
 		}
 		status := store.ChangelogStatusDone
 		update.Status = &status
@@ -528,19 +545,56 @@ func endMigration(ctx context.Context, storeInstance *store.Store, mc *migrateCo
 	return nil
 }
 
-func convertTaskType(t base.TaskType) storepb.ChangelogPayload_Type {
+// shouldUpdateVersion checks if newVersion is greater than currentVersion.
+// Returns true if:
+// - currentVersion is empty
+// - currentVersion is invalid
+// - newVersion is greater than currentVersion
+func shouldUpdateVersion(currentVersion, newVersion string) bool {
+	if currentVersion == "" {
+		// If no current version, always update
+		return true
+	}
+	current, err := model.NewVersion(currentVersion)
+	if err != nil {
+		// If current version is invalid, update with new version
+		return true
+	}
+
+	nv, err := model.NewVersion(newVersion)
+	if err != nil {
+		// If new version is invalid, don't update
+		return false
+	}
+	return current.LessThan(nv)
+}
+
+func convertTaskType(t storepb.Task_Type) storepb.ChangelogPayload_Type {
 	switch t {
-	case base.TaskDatabaseDataUpdate:
+	case storepb.Task_DATABASE_DATA_UPDATE:
 		return storepb.ChangelogPayload_DATA
-	case base.TaskDatabaseSchemaBaseline:
-		return storepb.ChangelogPayload_BASELINE
-	case base.TaskDatabaseSchemaUpdate:
+	case storepb.Task_DATABASE_SCHEMA_UPDATE:
 		return storepb.ChangelogPayload_MIGRATE
-	case base.TaskDatabaseSchemaUpdateGhost:
+	case storepb.Task_DATABASE_SCHEMA_UPDATE_GHOST:
 		return storepb.ChangelogPayload_MIGRATE_GHOST
 
-	case base.TaskDatabaseCreate:
-	case base.TaskDatabaseDataExport:
+	case storepb.Task_DATABASE_CREATE:
+	case storepb.Task_DATABASE_EXPORT:
 	}
 	return storepb.ChangelogPayload_TYPE_UNSPECIFIED
+}
+
+// isChangeDatabaseTask returns whether the task involves changing a database.
+func isChangeDatabaseTask(taskType storepb.Task_Type) bool {
+	switch taskType {
+	case storepb.Task_DATABASE_DATA_UPDATE,
+		storepb.Task_DATABASE_SCHEMA_UPDATE,
+		storepb.Task_DATABASE_SCHEMA_UPDATE_GHOST:
+		return true
+	case storepb.Task_DATABASE_CREATE,
+		storepb.Task_DATABASE_EXPORT:
+		return false
+	default:
+		return false
+	}
 }

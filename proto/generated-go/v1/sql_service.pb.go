@@ -2686,13 +2686,13 @@ const file_v1_sql_service_proto_rawDesc = "" +
 	"\n" +
 	"_containerJ\x04\b\x02\x10\x03\"J\n" +
 	"\x14AdminExecuteResponse\x122\n" +
-	"\aresults\x18\x01 \x03(\v2\x18.bytebase.v1.QueryResultR\aresults\"\xd2\x02\n" +
+	"\aresults\x18\x01 \x03(\v2\x18.bytebase.v1.QueryResultR\aresults\"\xd8\x02\n" +
 	"\fQueryRequest\x122\n" +
 	"\x04name\x18\x01 \x01(\tB\x1e\xe2A\x01\x02\xfaA\x17\n" +
 	"\x15bytebase.com/DatabaseR\x04name\x12\x1c\n" +
 	"\tstatement\x18\x03 \x01(\tR\tstatement\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12$\n" +
-	"\x0edata_source_id\x18\x06 \x01(\tR\fdataSourceId\x12\x18\n" +
+	"\x05limit\x18\x04 \x01(\x05R\x05limit\x12*\n" +
+	"\x0edata_source_id\x18\x06 \x01(\tB\x04\xe2A\x01\x02R\fdataSourceId\x12\x18\n" +
 	"\aexplain\x18\a \x01(\bR\aexplain\x12\x1b\n" +
 	"\x06schema\x18\b \x01(\tH\x00R\x06schema\x88\x01\x01\x12;\n" +
 	"\fquery_option\x18\t \x01(\v2\x18.bytebase.v1.QueryOptionR\vqueryOption\x12!\n" +
@@ -2892,14 +2892,14 @@ const file_v1_sql_service_proto_rawDesc = "" +
 	"\aContent\x12N\n" +
 	"\x05parts\x18\x01 \x03(\v28.bytebase.v1.AICompletionResponse.Candidate.Content.PartR\x05parts\x1a\x1a\n" +
 	"\x04Part\x12\x12\n" +
-	"\x04text\x18\x01 \x01(\tR\x04text2\xb3\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text2\xed\n" +
 	"\n" +
 	"\n" +
 	"SQLService\x12\xb2\x01\n" +
 	"\x05Query\x12\x19.bytebase.v1.QueryRequest\x1a\x1a.bytebase.v1.QueryResponse\"r\x8a\xea0\x10bb.databases.get\x90\xea0\x01\x98\xea0\x01\x82\xd3\xe4\x93\x02P:\x01*Z!:\x01*\"\x1c/v1/{name=instances/*}:query\"(/v1/{name=instances/*/databases/*}:query\x12\x89\x01\n" +
 	"\fAdminExecute\x12 .bytebase.v1.AdminExecuteRequest\x1a!.bytebase.v1.AdminExecuteResponse\"0\x8a\xea0\fbb.sql.admin\x90\xea0\x01\x98\xea0\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1:adminExecute(\x010\x01\x12\x95\x01\n" +
-	"\x14SearchQueryHistories\x12(.bytebase.v1.SearchQueryHistoriesRequest\x1a).bytebase.v1.SearchQueryHistoriesResponse\"(\x90\xea0\x02\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/queryHistories:search\x12\xe4\x01\n" +
-	"\x06Export\x12\x1a.bytebase.v1.ExportRequest\x1a\x1b.bytebase.v1.ExportResponse\"\xa0\x01\x8a\xea0\x10bb.databases.get\x90\xea0\x01\x98\xea0\x01\x82\xd3\xe4\x93\x02~:\x01*Z\":\x01*\"\x1d/v1/{name=instances/*}:exportZ*:\x01*\"%/v1/{name=projects/*/issues/*}:export\")/v1/{name=instances/*/databases/*}:export\x12r\n" +
+	"\x14SearchQueryHistories\x12(.bytebase.v1.SearchQueryHistoriesRequest\x1a).bytebase.v1.SearchQueryHistoriesResponse\"(\x90\xea0\x02\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/queryHistories:search\x12\x9e\x02\n" +
+	"\x06Export\x12\x1a.bytebase.v1.ExportRequest\x1a\x1b.bytebase.v1.ExportResponse\"\xda\x01\x8a\xea0\x10bb.databases.get\x90\xea0\x01\x98\xea0\x01\x82\xd3\xe4\x93\x02\xb7\x01:\x01*Z\":\x01*\"\x1d/v1/{name=instances/*}:exportZ,:\x01*\"'/v1/{name=projects/*/rollouts/*}:exportZ5:\x01*\"0/v1/{name=projects/*/rollouts/*/stages/*}:export\")/v1/{name=instances/*/databases/*}:export\x12r\n" +
 	"\x05Check\x12\x19.bytebase.v1.CheckRequest\x1a\x1a.bytebase.v1.CheckResponse\"2\x8a\xea0\x12bb.databases.check\x90\xea0\x01\x82\xd3\xe4\x93\x02\x12:\x01*\"\r/v1/sql/check\x12\x90\x01\n" +
 	"\x12ParseMyBatisMapper\x12&.bytebase.v1.ParseMyBatisMapperRequest\x1a'.bytebase.v1.ParseMyBatisMapperResponse\")\x80\xea0\x01\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/sql/parseMyBatisMapper\x12`\n" +
 	"\x06Pretty\x12\x1a.bytebase.v1.PrettyRequest\x1a\x1b.bytebase.v1.PrettyResponse\"\x1d\x80\xea0\x01\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/v1/sql/pretty\x12\x81\x01\n" +

@@ -21,7 +21,6 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"gopkg.in/yaml.v3"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/plugin/advisor"
 	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
@@ -117,7 +116,7 @@ func TestSQLReviewForPostgreSQL(t *testing.T) {
 			Policy: &v1pb.Policy_TagPolicy{
 				TagPolicy: &v1pb.TagPolicy{
 					Tags: map[string]string{
-						string(base.ReservedTagReviewConfig): createdConfig.Name,
+						string(common.ReservedTagReviewConfig): createdConfig.Name,
 					},
 				},
 			},
@@ -287,7 +286,7 @@ func TestSQLReviewForMySQL(t *testing.T) {
 			Policy: &v1pb.Policy_TagPolicy{
 				TagPolicy: &v1pb.TagPolicy{
 					Tags: map[string]string{
-						string(base.ReservedTagReviewConfig): createdConfig.Name,
+						string(common.ReservedTagReviewConfig): createdConfig.Name,
 					},
 				},
 			},
@@ -473,18 +472,14 @@ func createIssueAndReturnSQLReviewResult(ctx context.Context, a *require.Asserti
 	plan, err := ctl.planServiceClient.CreatePlan(ctx, &v1pb.CreatePlanRequest{
 		Parent: project.Name,
 		Plan: &v1pb.Plan{
-			Steps: []*v1pb.Plan_Step{
+			Specs: []*v1pb.Plan_Spec{
 				{
-					Specs: []*v1pb.Plan_Spec{
-						{
-							Id: uuid.NewString(),
-							Config: &v1pb.Plan_Spec_ChangeDatabaseConfig{
-								ChangeDatabaseConfig: &v1pb.Plan_ChangeDatabaseConfig{
-									Target: database.Name,
-									Sheet:  sheet.Name,
-									Type:   v1pb.Plan_ChangeDatabaseConfig_MIGRATE,
-								},
-							},
+					Id: uuid.NewString(),
+					Config: &v1pb.Plan_Spec_ChangeDatabaseConfig{
+						ChangeDatabaseConfig: &v1pb.Plan_ChangeDatabaseConfig{
+							Targets: []string{database.Name},
+							Sheet:   sheet.Name,
+							Type:    v1pb.Plan_ChangeDatabaseConfig_MIGRATE,
 						},
 					},
 				},

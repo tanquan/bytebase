@@ -142,9 +142,15 @@ export interface Plan {
    * Format: projects/{project}/issues/{issue}
    */
   issue: string;
+  /**
+   * The rollout associated with the plan.
+   * Can be empty.
+   * Format: projects/{project}/rollouts/{rollout}
+   */
+  rollout: string;
   title: string;
   description: string;
-  steps: Plan_Step[];
+  specs: Plan_Spec[];
   /** Format: users/hello@world.com */
   creator: string;
   createTime: Timestamp | undefined;
@@ -159,7 +165,6 @@ export interface Plan {
    * - ERROR
    */
   planCheckRunStatusCount: { [key: string]: number };
-  releaseSource: Plan_ReleaseSource | undefined;
   deployment: Plan_Deployment | undefined;
 }
 
@@ -169,13 +174,8 @@ export interface Plan_Step {
 }
 
 export interface Plan_Spec {
-  /** earliest_allowed_time the earliest execution time of the change. */
-  earliestAllowedTime:
-    | Timestamp
-    | undefined;
   /** A UUID4 string that uniquely identifies the Spec. */
   id: string;
-  specReleaseSource: Plan_SpecReleaseSource | undefined;
   createDatabaseConfig?: Plan_CreateDatabaseConfig | undefined;
   changeDatabaseConfig?: Plan_ChangeDatabaseConfig | undefined;
   exportDataConfig?: Plan_ExportDataConfig | undefined;
@@ -216,36 +216,30 @@ export interface Plan_CreateDatabaseConfig {
 
 export interface Plan_ChangeDatabaseConfig {
   /**
-   * The resource name of the target.
-   * Format: instances/{instance-id}/databases/{database-name}.
-   * Format: projects/{project}/databaseGroups/{databaseGroup}.
+   * The list of targets.
+   * Multi-database format: [instances/{instance-id}/databases/{database-name}].
+   * Single database group format: [projects/{project}/databaseGroups/{databaseGroup}].
    */
-  target: string;
+  targets: string[];
   /**
    * The resource name of the sheet.
    * Format: projects/{project}/sheets/{sheet}
    */
   sheet: string;
-  type: Plan_ChangeDatabaseConfig_Type;
   /**
-   * schema_version is parsed from file name.
-   * It is automatically generated in the UI workflow.
+   * The resource name of the release.
+   * Format: projects/{project}/releases/{release}
    */
-  schemaVersion: string;
+  release: string;
+  type: Plan_ChangeDatabaseConfig_Type;
   ghostFlags: { [key: string]: string };
   /** If set, a backup of the modified data will be created automatically before any changes are applied. */
-  preUpdateBackupDetail?: Plan_ChangeDatabaseConfig_PreUpdateBackupDetail | undefined;
+  enablePriorBackup: boolean;
 }
 
 /** Type is the database change type. */
 export enum Plan_ChangeDatabaseConfig_Type {
   TYPE_UNSPECIFIED = "TYPE_UNSPECIFIED",
-  /**
-   * BASELINE - Used for establishing schema baseline, this is used when
-   * 1. Onboard the database into Bytebase since Bytebase needs to know the current database schema.
-   * 2. Had schema drift and need to re-establish the baseline.
-   */
-  BASELINE = "BASELINE",
   /** MIGRATE - Used for DDL changes including CREATE DATABASE. */
   MIGRATE = "MIGRATE",
   /** MIGRATE_SDL - Used for schema changes via state-based schema migration including CREATE DATABASE. */
@@ -262,9 +256,6 @@ export function plan_ChangeDatabaseConfig_TypeFromJSON(object: any): Plan_Change
     case 0:
     case "TYPE_UNSPECIFIED":
       return Plan_ChangeDatabaseConfig_Type.TYPE_UNSPECIFIED;
-    case 1:
-    case "BASELINE":
-      return Plan_ChangeDatabaseConfig_Type.BASELINE;
     case 2:
     case "MIGRATE":
       return Plan_ChangeDatabaseConfig_Type.MIGRATE;
@@ -288,8 +279,6 @@ export function plan_ChangeDatabaseConfig_TypeToJSON(object: Plan_ChangeDatabase
   switch (object) {
     case Plan_ChangeDatabaseConfig_Type.TYPE_UNSPECIFIED:
       return "TYPE_UNSPECIFIED";
-    case Plan_ChangeDatabaseConfig_Type.BASELINE:
-      return "BASELINE";
     case Plan_ChangeDatabaseConfig_Type.MIGRATE:
       return "MIGRATE";
     case Plan_ChangeDatabaseConfig_Type.MIGRATE_SDL:
@@ -308,8 +297,6 @@ export function plan_ChangeDatabaseConfig_TypeToNumber(object: Plan_ChangeDataba
   switch (object) {
     case Plan_ChangeDatabaseConfig_Type.TYPE_UNSPECIFIED:
       return 0;
-    case Plan_ChangeDatabaseConfig_Type.BASELINE:
-      return 1;
     case Plan_ChangeDatabaseConfig_Type.MIGRATE:
       return 2;
     case Plan_ChangeDatabaseConfig_Type.MIGRATE_SDL:
@@ -329,20 +316,13 @@ export interface Plan_ChangeDatabaseConfig_GhostFlagsEntry {
   value: string;
 }
 
-export interface Plan_ChangeDatabaseConfig_PreUpdateBackupDetail {
-  /**
-   * The database for keeping the backup data.
-   * Format: instances/{instance}/databases/{database}
-   */
-  database: string;
-}
-
 export interface Plan_ExportDataConfig {
   /**
-   * The resource name of the target.
-   * Format: instances/{instance-id}/databases/{database-name}
+   * The list of targets.
+   * Multi-database format: [instances/{instance-id}/databases/{database-name}].
+   * Single database group format: [projects/{project}/databaseGroups/{databaseGroup}].
    */
-  target: string;
+  targets: string[];
   /**
    * The resource name of the sheet.
    * Format: projects/{project}/sheets/{sheet}
@@ -369,22 +349,6 @@ export interface Plan_Deployment_DatabaseGroupMapping {
   databaseGroup: string;
   /** Format: instances/{instance-id}/databases/{database-name}. */
   databases: string[];
-}
-
-export interface Plan_ReleaseSource {
-  /**
-   * The release.
-   * Format: projects/{project}/releases/{release}
-   */
-  release: string;
-}
-
-export interface Plan_SpecReleaseSource {
-  /**
-   * Format: projects/{project}/releases/{release}/files/{file}
-   * {file} is URL path escaped.
-   */
-  file: string;
 }
 
 export interface ListPlanCheckRunsRequest {
@@ -450,41 +414,6 @@ export interface BatchCancelPlanCheckRunsRequest {
 }
 
 export interface BatchCancelPlanCheckRunsResponse {
-}
-
-export interface PreviewPlanRequest {
-  /**
-   * The name of the project.
-   * Format: projects/{project}
-   */
-  project: string;
-  /** The release used for preview. */
-  release: string;
-  /**
-   * The targets to deploy.
-   * Can be database or databaseGroup.
-   * Format:
-   * projects/{project}/databaseGroups/{databaseGroup}
-   * instances/{instance}/databases/{database}
-   */
-  targets: string[];
-  allowOutOfOrder: boolean;
-}
-
-export interface PreviewPlanResponse {
-  plan:
-    | Plan
-    | undefined;
-  /** The out of order files of each database. */
-  outOfOrderFiles: PreviewPlanResponse_DatabaseFiles[];
-  /** The applied but modified files of each database. */
-  appliedButModifiedFiles: PreviewPlanResponse_DatabaseFiles[];
-}
-
-export interface PreviewPlanResponse_DatabaseFiles {
-  database: string;
-  /** Format: projects/{project}/releases/{release}/files/{file_id} */
-  files: string[];
 }
 
 export interface PlanCheckRun {
@@ -772,10 +701,6 @@ export const GetPlanRequest: MessageFns<GetPlanRequest> = {
     return message;
   },
 
-  fromJSON(object: any): GetPlanRequest {
-    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
-  },
-
   toJSON(message: GetPlanRequest): unknown {
     const obj: any = {};
     if (message.name !== "") {
@@ -852,14 +777,6 @@ export const ListPlansRequest: MessageFns<ListPlansRequest> = {
     return message;
   },
 
-  fromJSON(object: any): ListPlansRequest {
-    return {
-      parent: isSet(object.parent) ? globalThis.String(object.parent) : "",
-      pageSize: isSet(object.pageSize) ? globalThis.Number(object.pageSize) : 0,
-      pageToken: isSet(object.pageToken) ? globalThis.String(object.pageToken) : "",
-    };
-  },
-
   toJSON(message: ListPlansRequest): unknown {
     const obj: any = {};
     if (message.parent !== "") {
@@ -931,13 +848,6 @@ export const ListPlansResponse: MessageFns<ListPlansResponse> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): ListPlansResponse {
-    return {
-      plans: globalThis.Array.isArray(object?.plans) ? object.plans.map((e: any) => Plan.fromJSON(e)) : [],
-      nextPageToken: isSet(object.nextPageToken) ? globalThis.String(object.nextPageToken) : "",
-    };
   },
 
   toJSON(message: ListPlansResponse): unknown {
@@ -1031,15 +941,6 @@ export const SearchPlansRequest: MessageFns<SearchPlansRequest> = {
     return message;
   },
 
-  fromJSON(object: any): SearchPlansRequest {
-    return {
-      parent: isSet(object.parent) ? globalThis.String(object.parent) : "",
-      pageSize: isSet(object.pageSize) ? globalThis.Number(object.pageSize) : 0,
-      pageToken: isSet(object.pageToken) ? globalThis.String(object.pageToken) : "",
-      filter: isSet(object.filter) ? globalThis.String(object.filter) : "",
-    };
-  },
-
   toJSON(message: SearchPlansRequest): unknown {
     const obj: any = {};
     if (message.parent !== "") {
@@ -1117,13 +1018,6 @@ export const SearchPlansResponse: MessageFns<SearchPlansResponse> = {
     return message;
   },
 
-  fromJSON(object: any): SearchPlansResponse {
-    return {
-      plans: globalThis.Array.isArray(object?.plans) ? object.plans.map((e: any) => Plan.fromJSON(e)) : [],
-      nextPageToken: isSet(object.nextPageToken) ? globalThis.String(object.nextPageToken) : "",
-    };
-  },
-
   toJSON(message: SearchPlansResponse): unknown {
     const obj: any = {};
     if (message.plans?.length) {
@@ -1191,13 +1085,6 @@ export const CreatePlanRequest: MessageFns<CreatePlanRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): CreatePlanRequest {
-    return {
-      parent: isSet(object.parent) ? globalThis.String(object.parent) : "",
-      plan: isSet(object.plan) ? Plan.fromJSON(object.plan) : undefined,
-    };
   },
 
   toJSON(message: CreatePlanRequest): unknown {
@@ -1269,13 +1156,6 @@ export const UpdatePlanRequest: MessageFns<UpdatePlanRequest> = {
     return message;
   },
 
-  fromJSON(object: any): UpdatePlanRequest {
-    return {
-      plan: isSet(object.plan) ? Plan.fromJSON(object.plan) : undefined,
-      updateMask: isSet(object.updateMask) ? FieldMask.unwrap(FieldMask.fromJSON(object.updateMask)) : undefined,
-    };
-  },
-
   toJSON(message: UpdatePlanRequest): unknown {
     const obj: any = {};
     if (message.plan !== undefined) {
@@ -1302,14 +1182,14 @@ function createBasePlan(): Plan {
   return {
     name: "",
     issue: "",
+    rollout: "",
     title: "",
     description: "",
-    steps: [],
+    specs: [],
     creator: "",
     createTime: undefined,
     updateTime: undefined,
     planCheckRunStatusCount: {},
-    releaseSource: undefined,
     deployment: undefined,
   };
 }
@@ -1322,14 +1202,17 @@ export const Plan: MessageFns<Plan> = {
     if (message.issue !== "") {
       writer.uint32(26).string(message.issue);
     }
+    if (message.rollout !== "") {
+      writer.uint32(122).string(message.rollout);
+    }
     if (message.title !== "") {
       writer.uint32(34).string(message.title);
     }
     if (message.description !== "") {
       writer.uint32(42).string(message.description);
     }
-    for (const v of message.steps) {
-      Plan_Step.encode(v!, writer.uint32(50).fork()).join();
+    for (const v of message.specs) {
+      Plan_Spec.encode(v!, writer.uint32(114).fork()).join();
     }
     if (message.creator !== "") {
       writer.uint32(66).string(message.creator);
@@ -1343,9 +1226,6 @@ export const Plan: MessageFns<Plan> = {
     Object.entries(message.planCheckRunStatusCount).forEach(([key, value]) => {
       Plan_PlanCheckRunStatusCountEntry.encode({ key: key as any, value }, writer.uint32(90).fork()).join();
     });
-    if (message.releaseSource !== undefined) {
-      Plan_ReleaseSource.encode(message.releaseSource, writer.uint32(98).fork()).join();
-    }
     if (message.deployment !== undefined) {
       Plan_Deployment.encode(message.deployment, writer.uint32(106).fork()).join();
     }
@@ -1375,6 +1255,14 @@ export const Plan: MessageFns<Plan> = {
           message.issue = reader.string();
           continue;
         }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.rollout = reader.string();
+          continue;
+        }
         case 4: {
           if (tag !== 34) {
             break;
@@ -1391,12 +1279,12 @@ export const Plan: MessageFns<Plan> = {
           message.description = reader.string();
           continue;
         }
-        case 6: {
-          if (tag !== 50) {
+        case 14: {
+          if (tag !== 114) {
             break;
           }
 
-          message.steps.push(Plan_Step.decode(reader, reader.uint32()));
+          message.specs.push(Plan_Spec.decode(reader, reader.uint32()));
           continue;
         }
         case 8: {
@@ -1434,14 +1322,6 @@ export const Plan: MessageFns<Plan> = {
           }
           continue;
         }
-        case 12: {
-          if (tag !== 98) {
-            break;
-          }
-
-          message.releaseSource = Plan_ReleaseSource.decode(reader, reader.uint32());
-          continue;
-        }
         case 13: {
           if (tag !== 106) {
             break;
@@ -1459,27 +1339,6 @@ export const Plan: MessageFns<Plan> = {
     return message;
   },
 
-  fromJSON(object: any): Plan {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      issue: isSet(object.issue) ? globalThis.String(object.issue) : "",
-      title: isSet(object.title) ? globalThis.String(object.title) : "",
-      description: isSet(object.description) ? globalThis.String(object.description) : "",
-      steps: globalThis.Array.isArray(object?.steps) ? object.steps.map((e: any) => Plan_Step.fromJSON(e)) : [],
-      creator: isSet(object.creator) ? globalThis.String(object.creator) : "",
-      createTime: isSet(object.createTime) ? fromJsonTimestamp(object.createTime) : undefined,
-      updateTime: isSet(object.updateTime) ? fromJsonTimestamp(object.updateTime) : undefined,
-      planCheckRunStatusCount: isObject(object.planCheckRunStatusCount)
-        ? Object.entries(object.planCheckRunStatusCount).reduce<{ [key: string]: number }>((acc, [key, value]) => {
-          acc[key] = Number(value);
-          return acc;
-        }, {})
-        : {},
-      releaseSource: isSet(object.releaseSource) ? Plan_ReleaseSource.fromJSON(object.releaseSource) : undefined,
-      deployment: isSet(object.deployment) ? Plan_Deployment.fromJSON(object.deployment) : undefined,
-    };
-  },
-
   toJSON(message: Plan): unknown {
     const obj: any = {};
     if (message.name !== "") {
@@ -1488,14 +1347,17 @@ export const Plan: MessageFns<Plan> = {
     if (message.issue !== "") {
       obj.issue = message.issue;
     }
+    if (message.rollout !== "") {
+      obj.rollout = message.rollout;
+    }
     if (message.title !== "") {
       obj.title = message.title;
     }
     if (message.description !== "") {
       obj.description = message.description;
     }
-    if (message.steps?.length) {
-      obj.steps = message.steps.map((e) => Plan_Step.toJSON(e));
+    if (message.specs?.length) {
+      obj.specs = message.specs.map((e) => Plan_Spec.toJSON(e));
     }
     if (message.creator !== "") {
       obj.creator = message.creator;
@@ -1515,9 +1377,6 @@ export const Plan: MessageFns<Plan> = {
         });
       }
     }
-    if (message.releaseSource !== undefined) {
-      obj.releaseSource = Plan_ReleaseSource.toJSON(message.releaseSource);
-    }
     if (message.deployment !== undefined) {
       obj.deployment = Plan_Deployment.toJSON(message.deployment);
     }
@@ -1531,9 +1390,10 @@ export const Plan: MessageFns<Plan> = {
     const message = createBasePlan();
     message.name = object.name ?? "";
     message.issue = object.issue ?? "";
+    message.rollout = object.rollout ?? "";
     message.title = object.title ?? "";
     message.description = object.description ?? "";
-    message.steps = object.steps?.map((e) => Plan_Step.fromPartial(e)) || [];
+    message.specs = object.specs?.map((e) => Plan_Spec.fromPartial(e)) || [];
     message.creator = object.creator ?? "";
     message.createTime = (object.createTime !== undefined && object.createTime !== null)
       ? Timestamp.fromPartial(object.createTime)
@@ -1549,9 +1409,6 @@ export const Plan: MessageFns<Plan> = {
       }
       return acc;
     }, {});
-    message.releaseSource = (object.releaseSource !== undefined && object.releaseSource !== null)
-      ? Plan_ReleaseSource.fromPartial(object.releaseSource)
-      : undefined;
     message.deployment = (object.deployment !== undefined && object.deployment !== null)
       ? Plan_Deployment.fromPartial(object.deployment)
       : undefined;
@@ -1606,13 +1463,6 @@ export const Plan_Step: MessageFns<Plan_Step> = {
     return message;
   },
 
-  fromJSON(object: any): Plan_Step {
-    return {
-      title: isSet(object.title) ? globalThis.String(object.title) : "",
-      specs: globalThis.Array.isArray(object?.specs) ? object.specs.map((e: any) => Plan_Spec.fromJSON(e)) : [],
-    };
-  },
-
   toJSON(message: Plan_Step): unknown {
     const obj: any = {};
     if (message.title !== "") {
@@ -1636,26 +1486,13 @@ export const Plan_Step: MessageFns<Plan_Step> = {
 };
 
 function createBasePlan_Spec(): Plan_Spec {
-  return {
-    earliestAllowedTime: undefined,
-    id: "",
-    specReleaseSource: undefined,
-    createDatabaseConfig: undefined,
-    changeDatabaseConfig: undefined,
-    exportDataConfig: undefined,
-  };
+  return { id: "", createDatabaseConfig: undefined, changeDatabaseConfig: undefined, exportDataConfig: undefined };
 }
 
 export const Plan_Spec: MessageFns<Plan_Spec> = {
   encode(message: Plan_Spec, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.earliestAllowedTime !== undefined) {
-      Timestamp.encode(message.earliestAllowedTime, writer.uint32(34).fork()).join();
-    }
     if (message.id !== "") {
       writer.uint32(42).string(message.id);
-    }
-    if (message.specReleaseSource !== undefined) {
-      Plan_SpecReleaseSource.encode(message.specReleaseSource, writer.uint32(66).fork()).join();
     }
     if (message.createDatabaseConfig !== undefined) {
       Plan_CreateDatabaseConfig.encode(message.createDatabaseConfig, writer.uint32(10).fork()).join();
@@ -1676,28 +1513,12 @@ export const Plan_Spec: MessageFns<Plan_Spec> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.earliestAllowedTime = Timestamp.decode(reader, reader.uint32());
-          continue;
-        }
         case 5: {
           if (tag !== 42) {
             break;
           }
 
           message.id = reader.string();
-          continue;
-        }
-        case 8: {
-          if (tag !== 66) {
-            break;
-          }
-
-          message.specReleaseSource = Plan_SpecReleaseSource.decode(reader, reader.uint32());
           continue;
         }
         case 1: {
@@ -1733,37 +1554,10 @@ export const Plan_Spec: MessageFns<Plan_Spec> = {
     return message;
   },
 
-  fromJSON(object: any): Plan_Spec {
-    return {
-      earliestAllowedTime: isSet(object.earliestAllowedTime)
-        ? fromJsonTimestamp(object.earliestAllowedTime)
-        : undefined,
-      id: isSet(object.id) ? globalThis.String(object.id) : "",
-      specReleaseSource: isSet(object.specReleaseSource)
-        ? Plan_SpecReleaseSource.fromJSON(object.specReleaseSource)
-        : undefined,
-      createDatabaseConfig: isSet(object.createDatabaseConfig)
-        ? Plan_CreateDatabaseConfig.fromJSON(object.createDatabaseConfig)
-        : undefined,
-      changeDatabaseConfig: isSet(object.changeDatabaseConfig)
-        ? Plan_ChangeDatabaseConfig.fromJSON(object.changeDatabaseConfig)
-        : undefined,
-      exportDataConfig: isSet(object.exportDataConfig)
-        ? Plan_ExportDataConfig.fromJSON(object.exportDataConfig)
-        : undefined,
-    };
-  },
-
   toJSON(message: Plan_Spec): unknown {
     const obj: any = {};
-    if (message.earliestAllowedTime !== undefined) {
-      obj.earliestAllowedTime = fromTimestamp(message.earliestAllowedTime).toISOString();
-    }
     if (message.id !== "") {
       obj.id = message.id;
-    }
-    if (message.specReleaseSource !== undefined) {
-      obj.specReleaseSource = Plan_SpecReleaseSource.toJSON(message.specReleaseSource);
     }
     if (message.createDatabaseConfig !== undefined) {
       obj.createDatabaseConfig = Plan_CreateDatabaseConfig.toJSON(message.createDatabaseConfig);
@@ -1782,13 +1576,7 @@ export const Plan_Spec: MessageFns<Plan_Spec> = {
   },
   fromPartial(object: DeepPartial<Plan_Spec>): Plan_Spec {
     const message = createBasePlan_Spec();
-    message.earliestAllowedTime = (object.earliestAllowedTime !== undefined && object.earliestAllowedTime !== null)
-      ? Timestamp.fromPartial(object.earliestAllowedTime)
-      : undefined;
     message.id = object.id ?? "";
-    message.specReleaseSource = (object.specReleaseSource !== undefined && object.specReleaseSource !== null)
-      ? Plan_SpecReleaseSource.fromPartial(object.specReleaseSource)
-      : undefined;
     message.createDatabaseConfig = (object.createDatabaseConfig !== undefined && object.createDatabaseConfig !== null)
       ? Plan_CreateDatabaseConfig.fromPartial(object.createDatabaseConfig)
       : undefined;
@@ -1847,13 +1635,6 @@ export const Plan_PlanCheckRunStatusCountEntry: MessageFns<Plan_PlanCheckRunStat
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): Plan_PlanCheckRunStatusCountEntry {
-    return {
-      key: isSet(object.key) ? globalThis.String(object.key) : "",
-      value: isSet(object.value) ? globalThis.Number(object.value) : 0,
-    };
   },
 
   toJSON(message: Plan_PlanCheckRunStatusCountEntry): unknown {
@@ -2000,19 +1781,6 @@ export const Plan_CreateDatabaseConfig: MessageFns<Plan_CreateDatabaseConfig> = 
     return message;
   },
 
-  fromJSON(object: any): Plan_CreateDatabaseConfig {
-    return {
-      target: isSet(object.target) ? globalThis.String(object.target) : "",
-      database: isSet(object.database) ? globalThis.String(object.database) : "",
-      table: isSet(object.table) ? globalThis.String(object.table) : "",
-      characterSet: isSet(object.characterSet) ? globalThis.String(object.characterSet) : "",
-      collation: isSet(object.collation) ? globalThis.String(object.collation) : "",
-      cluster: isSet(object.cluster) ? globalThis.String(object.cluster) : "",
-      owner: isSet(object.owner) ? globalThis.String(object.owner) : "",
-      environment: isSet(object.environment) ? globalThis.String(object.environment) : "",
-    };
-  },
-
   toJSON(message: Plan_CreateDatabaseConfig): unknown {
     const obj: any = {};
     if (message.target !== "") {
@@ -2061,35 +1829,34 @@ export const Plan_CreateDatabaseConfig: MessageFns<Plan_CreateDatabaseConfig> = 
 
 function createBasePlan_ChangeDatabaseConfig(): Plan_ChangeDatabaseConfig {
   return {
-    target: "",
+    targets: [],
     sheet: "",
+    release: "",
     type: Plan_ChangeDatabaseConfig_Type.TYPE_UNSPECIFIED,
-    schemaVersion: "",
     ghostFlags: {},
-    preUpdateBackupDetail: undefined,
+    enablePriorBackup: false,
   };
 }
 
 export const Plan_ChangeDatabaseConfig: MessageFns<Plan_ChangeDatabaseConfig> = {
   encode(message: Plan_ChangeDatabaseConfig, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.target !== "") {
-      writer.uint32(10).string(message.target);
+    for (const v of message.targets) {
+      writer.uint32(82).string(v!);
     }
     if (message.sheet !== "") {
       writer.uint32(18).string(message.sheet);
     }
+    if (message.release !== "") {
+      writer.uint32(74).string(message.release);
+    }
     if (message.type !== Plan_ChangeDatabaseConfig_Type.TYPE_UNSPECIFIED) {
       writer.uint32(24).int32(plan_ChangeDatabaseConfig_TypeToNumber(message.type));
-    }
-    if (message.schemaVersion !== "") {
-      writer.uint32(34).string(message.schemaVersion);
     }
     Object.entries(message.ghostFlags).forEach(([key, value]) => {
       Plan_ChangeDatabaseConfig_GhostFlagsEntry.encode({ key: key as any, value }, writer.uint32(58).fork()).join();
     });
-    if (message.preUpdateBackupDetail !== undefined) {
-      Plan_ChangeDatabaseConfig_PreUpdateBackupDetail.encode(message.preUpdateBackupDetail, writer.uint32(66).fork())
-        .join();
+    if (message.enablePriorBackup !== false) {
+      writer.uint32(64).bool(message.enablePriorBackup);
     }
     return writer;
   },
@@ -2101,12 +1868,12 @@ export const Plan_ChangeDatabaseConfig: MessageFns<Plan_ChangeDatabaseConfig> = 
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
+        case 10: {
+          if (tag !== 82) {
             break;
           }
 
-          message.target = reader.string();
+          message.targets.push(reader.string());
           continue;
         }
         case 2: {
@@ -2117,20 +1884,20 @@ export const Plan_ChangeDatabaseConfig: MessageFns<Plan_ChangeDatabaseConfig> = 
           message.sheet = reader.string();
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.release = reader.string();
+          continue;
+        }
         case 3: {
           if (tag !== 24) {
             break;
           }
 
           message.type = plan_ChangeDatabaseConfig_TypeFromJSON(reader.int32());
-          continue;
-        }
-        case 4: {
-          if (tag !== 34) {
-            break;
-          }
-
-          message.schemaVersion = reader.string();
           continue;
         }
         case 7: {
@@ -2145,14 +1912,11 @@ export const Plan_ChangeDatabaseConfig: MessageFns<Plan_ChangeDatabaseConfig> = 
           continue;
         }
         case 8: {
-          if (tag !== 66) {
+          if (tag !== 64) {
             break;
           }
 
-          message.preUpdateBackupDetail = Plan_ChangeDatabaseConfig_PreUpdateBackupDetail.decode(
-            reader,
-            reader.uint32(),
-          );
+          message.enablePriorBackup = reader.bool();
           continue;
         }
       }
@@ -2164,39 +1928,19 @@ export const Plan_ChangeDatabaseConfig: MessageFns<Plan_ChangeDatabaseConfig> = 
     return message;
   },
 
-  fromJSON(object: any): Plan_ChangeDatabaseConfig {
-    return {
-      target: isSet(object.target) ? globalThis.String(object.target) : "",
-      sheet: isSet(object.sheet) ? globalThis.String(object.sheet) : "",
-      type: isSet(object.type)
-        ? plan_ChangeDatabaseConfig_TypeFromJSON(object.type)
-        : Plan_ChangeDatabaseConfig_Type.TYPE_UNSPECIFIED,
-      schemaVersion: isSet(object.schemaVersion) ? globalThis.String(object.schemaVersion) : "",
-      ghostFlags: isObject(object.ghostFlags)
-        ? Object.entries(object.ghostFlags).reduce<{ [key: string]: string }>((acc, [key, value]) => {
-          acc[key] = String(value);
-          return acc;
-        }, {})
-        : {},
-      preUpdateBackupDetail: isSet(object.preUpdateBackupDetail)
-        ? Plan_ChangeDatabaseConfig_PreUpdateBackupDetail.fromJSON(object.preUpdateBackupDetail)
-        : undefined,
-    };
-  },
-
   toJSON(message: Plan_ChangeDatabaseConfig): unknown {
     const obj: any = {};
-    if (message.target !== "") {
-      obj.target = message.target;
+    if (message.targets?.length) {
+      obj.targets = message.targets;
     }
     if (message.sheet !== "") {
       obj.sheet = message.sheet;
     }
+    if (message.release !== "") {
+      obj.release = message.release;
+    }
     if (message.type !== Plan_ChangeDatabaseConfig_Type.TYPE_UNSPECIFIED) {
       obj.type = plan_ChangeDatabaseConfig_TypeToJSON(message.type);
-    }
-    if (message.schemaVersion !== "") {
-      obj.schemaVersion = message.schemaVersion;
     }
     if (message.ghostFlags) {
       const entries = Object.entries(message.ghostFlags);
@@ -2207,8 +1951,8 @@ export const Plan_ChangeDatabaseConfig: MessageFns<Plan_ChangeDatabaseConfig> = 
         });
       }
     }
-    if (message.preUpdateBackupDetail !== undefined) {
-      obj.preUpdateBackupDetail = Plan_ChangeDatabaseConfig_PreUpdateBackupDetail.toJSON(message.preUpdateBackupDetail);
+    if (message.enablePriorBackup !== false) {
+      obj.enablePriorBackup = message.enablePriorBackup;
     }
     return obj;
   },
@@ -2218,10 +1962,10 @@ export const Plan_ChangeDatabaseConfig: MessageFns<Plan_ChangeDatabaseConfig> = 
   },
   fromPartial(object: DeepPartial<Plan_ChangeDatabaseConfig>): Plan_ChangeDatabaseConfig {
     const message = createBasePlan_ChangeDatabaseConfig();
-    message.target = object.target ?? "";
+    message.targets = object.targets?.map((e) => e) || [];
     message.sheet = object.sheet ?? "";
+    message.release = object.release ?? "";
     message.type = object.type ?? Plan_ChangeDatabaseConfig_Type.TYPE_UNSPECIFIED;
-    message.schemaVersion = object.schemaVersion ?? "";
     message.ghostFlags = Object.entries(object.ghostFlags ?? {}).reduce<{ [key: string]: string }>(
       (acc, [key, value]) => {
         if (value !== undefined) {
@@ -2231,10 +1975,7 @@ export const Plan_ChangeDatabaseConfig: MessageFns<Plan_ChangeDatabaseConfig> = 
       },
       {},
     );
-    message.preUpdateBackupDetail =
-      (object.preUpdateBackupDetail !== undefined && object.preUpdateBackupDetail !== null)
-        ? Plan_ChangeDatabaseConfig_PreUpdateBackupDetail.fromPartial(object.preUpdateBackupDetail)
-        : undefined;
+    message.enablePriorBackup = object.enablePriorBackup ?? false;
     return message;
   },
 };
@@ -2286,13 +2027,6 @@ export const Plan_ChangeDatabaseConfig_GhostFlagsEntry: MessageFns<Plan_ChangeDa
     return message;
   },
 
-  fromJSON(object: any): Plan_ChangeDatabaseConfig_GhostFlagsEntry {
-    return {
-      key: isSet(object.key) ? globalThis.String(object.key) : "",
-      value: isSet(object.value) ? globalThis.String(object.value) : "",
-    };
-  },
-
   toJSON(message: Plan_ChangeDatabaseConfig_GhostFlagsEntry): unknown {
     const obj: any = {};
     if (message.key !== "") {
@@ -2317,81 +2051,14 @@ export const Plan_ChangeDatabaseConfig_GhostFlagsEntry: MessageFns<Plan_ChangeDa
   },
 };
 
-function createBasePlan_ChangeDatabaseConfig_PreUpdateBackupDetail(): Plan_ChangeDatabaseConfig_PreUpdateBackupDetail {
-  return { database: "" };
-}
-
-export const Plan_ChangeDatabaseConfig_PreUpdateBackupDetail: MessageFns<
-  Plan_ChangeDatabaseConfig_PreUpdateBackupDetail
-> = {
-  encode(
-    message: Plan_ChangeDatabaseConfig_PreUpdateBackupDetail,
-    writer: BinaryWriter = new BinaryWriter(),
-  ): BinaryWriter {
-    if (message.database !== "") {
-      writer.uint32(10).string(message.database);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): Plan_ChangeDatabaseConfig_PreUpdateBackupDetail {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePlan_ChangeDatabaseConfig_PreUpdateBackupDetail();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.database = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): Plan_ChangeDatabaseConfig_PreUpdateBackupDetail {
-    return { database: isSet(object.database) ? globalThis.String(object.database) : "" };
-  },
-
-  toJSON(message: Plan_ChangeDatabaseConfig_PreUpdateBackupDetail): unknown {
-    const obj: any = {};
-    if (message.database !== "") {
-      obj.database = message.database;
-    }
-    return obj;
-  },
-
-  create(
-    base?: DeepPartial<Plan_ChangeDatabaseConfig_PreUpdateBackupDetail>,
-  ): Plan_ChangeDatabaseConfig_PreUpdateBackupDetail {
-    return Plan_ChangeDatabaseConfig_PreUpdateBackupDetail.fromPartial(base ?? {});
-  },
-  fromPartial(
-    object: DeepPartial<Plan_ChangeDatabaseConfig_PreUpdateBackupDetail>,
-  ): Plan_ChangeDatabaseConfig_PreUpdateBackupDetail {
-    const message = createBasePlan_ChangeDatabaseConfig_PreUpdateBackupDetail();
-    message.database = object.database ?? "";
-    return message;
-  },
-};
-
 function createBasePlan_ExportDataConfig(): Plan_ExportDataConfig {
-  return { target: "", sheet: "", format: ExportFormat.FORMAT_UNSPECIFIED, password: undefined };
+  return { targets: [], sheet: "", format: ExportFormat.FORMAT_UNSPECIFIED, password: undefined };
 }
 
 export const Plan_ExportDataConfig: MessageFns<Plan_ExportDataConfig> = {
   encode(message: Plan_ExportDataConfig, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.target !== "") {
-      writer.uint32(10).string(message.target);
+    for (const v of message.targets) {
+      writer.uint32(42).string(v!);
     }
     if (message.sheet !== "") {
       writer.uint32(18).string(message.sheet);
@@ -2412,12 +2079,12 @@ export const Plan_ExportDataConfig: MessageFns<Plan_ExportDataConfig> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
+        case 5: {
+          if (tag !== 42) {
             break;
           }
 
-          message.target = reader.string();
+          message.targets.push(reader.string());
           continue;
         }
         case 2: {
@@ -2453,19 +2120,10 @@ export const Plan_ExportDataConfig: MessageFns<Plan_ExportDataConfig> = {
     return message;
   },
 
-  fromJSON(object: any): Plan_ExportDataConfig {
-    return {
-      target: isSet(object.target) ? globalThis.String(object.target) : "",
-      sheet: isSet(object.sheet) ? globalThis.String(object.sheet) : "",
-      format: isSet(object.format) ? exportFormatFromJSON(object.format) : ExportFormat.FORMAT_UNSPECIFIED,
-      password: isSet(object.password) ? globalThis.String(object.password) : undefined,
-    };
-  },
-
   toJSON(message: Plan_ExportDataConfig): unknown {
     const obj: any = {};
-    if (message.target !== "") {
-      obj.target = message.target;
+    if (message.targets?.length) {
+      obj.targets = message.targets;
     }
     if (message.sheet !== "") {
       obj.sheet = message.sheet;
@@ -2484,7 +2142,7 @@ export const Plan_ExportDataConfig: MessageFns<Plan_ExportDataConfig> = {
   },
   fromPartial(object: DeepPartial<Plan_ExportDataConfig>): Plan_ExportDataConfig {
     const message = createBasePlan_ExportDataConfig();
-    message.target = object.target ?? "";
+    message.targets = object.targets?.map((e) => e) || [];
     message.sheet = object.sheet ?? "";
     message.format = object.format ?? ExportFormat.FORMAT_UNSPECIFIED;
     message.password = object.password ?? undefined;
@@ -2537,17 +2195,6 @@ export const Plan_Deployment: MessageFns<Plan_Deployment> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): Plan_Deployment {
-    return {
-      environments: globalThis.Array.isArray(object?.environments)
-        ? object.environments.map((e: any) => globalThis.String(e))
-        : [],
-      databaseGroupMappings: globalThis.Array.isArray(object?.databaseGroupMappings)
-        ? object.databaseGroupMappings.map((e: any) => Plan_Deployment_DatabaseGroupMapping.fromJSON(e))
-        : [],
-    };
   },
 
   toJSON(message: Plan_Deployment): unknown {
@@ -2622,15 +2269,6 @@ export const Plan_Deployment_DatabaseGroupMapping: MessageFns<Plan_Deployment_Da
     return message;
   },
 
-  fromJSON(object: any): Plan_Deployment_DatabaseGroupMapping {
-    return {
-      databaseGroup: isSet(object.databaseGroup) ? globalThis.String(object.databaseGroup) : "",
-      databases: globalThis.Array.isArray(object?.databases)
-        ? object.databases.map((e: any) => globalThis.String(e))
-        : [],
-    };
-  },
-
   toJSON(message: Plan_Deployment_DatabaseGroupMapping): unknown {
     const obj: any = {};
     if (message.databaseGroup !== "") {
@@ -2649,122 +2287,6 @@ export const Plan_Deployment_DatabaseGroupMapping: MessageFns<Plan_Deployment_Da
     const message = createBasePlan_Deployment_DatabaseGroupMapping();
     message.databaseGroup = object.databaseGroup ?? "";
     message.databases = object.databases?.map((e) => e) || [];
-    return message;
-  },
-};
-
-function createBasePlan_ReleaseSource(): Plan_ReleaseSource {
-  return { release: "" };
-}
-
-export const Plan_ReleaseSource: MessageFns<Plan_ReleaseSource> = {
-  encode(message: Plan_ReleaseSource, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.release !== "") {
-      writer.uint32(10).string(message.release);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): Plan_ReleaseSource {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePlan_ReleaseSource();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.release = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): Plan_ReleaseSource {
-    return { release: isSet(object.release) ? globalThis.String(object.release) : "" };
-  },
-
-  toJSON(message: Plan_ReleaseSource): unknown {
-    const obj: any = {};
-    if (message.release !== "") {
-      obj.release = message.release;
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<Plan_ReleaseSource>): Plan_ReleaseSource {
-    return Plan_ReleaseSource.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<Plan_ReleaseSource>): Plan_ReleaseSource {
-    const message = createBasePlan_ReleaseSource();
-    message.release = object.release ?? "";
-    return message;
-  },
-};
-
-function createBasePlan_SpecReleaseSource(): Plan_SpecReleaseSource {
-  return { file: "" };
-}
-
-export const Plan_SpecReleaseSource: MessageFns<Plan_SpecReleaseSource> = {
-  encode(message: Plan_SpecReleaseSource, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.file !== "") {
-      writer.uint32(10).string(message.file);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): Plan_SpecReleaseSource {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePlan_SpecReleaseSource();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.file = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): Plan_SpecReleaseSource {
-    return { file: isSet(object.file) ? globalThis.String(object.file) : "" };
-  },
-
-  toJSON(message: Plan_SpecReleaseSource): unknown {
-    const obj: any = {};
-    if (message.file !== "") {
-      obj.file = message.file;
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<Plan_SpecReleaseSource>): Plan_SpecReleaseSource {
-    return Plan_SpecReleaseSource.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<Plan_SpecReleaseSource>): Plan_SpecReleaseSource {
-    const message = createBasePlan_SpecReleaseSource();
-    message.file = object.file ?? "";
     return message;
   },
 };
@@ -2836,15 +2358,6 @@ export const ListPlanCheckRunsRequest: MessageFns<ListPlanCheckRunsRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): ListPlanCheckRunsRequest {
-    return {
-      parent: isSet(object.parent) ? globalThis.String(object.parent) : "",
-      pageSize: isSet(object.pageSize) ? globalThis.Number(object.pageSize) : 0,
-      pageToken: isSet(object.pageToken) ? globalThis.String(object.pageToken) : "",
-      latestOnly: isSet(object.latestOnly) ? globalThis.Boolean(object.latestOnly) : false,
-    };
   },
 
   toJSON(message: ListPlanCheckRunsRequest): unknown {
@@ -2924,15 +2437,6 @@ export const ListPlanCheckRunsResponse: MessageFns<ListPlanCheckRunsResponse> = 
     return message;
   },
 
-  fromJSON(object: any): ListPlanCheckRunsResponse {
-    return {
-      planCheckRuns: globalThis.Array.isArray(object?.planCheckRuns)
-        ? object.planCheckRuns.map((e: any) => PlanCheckRun.fromJSON(e))
-        : [],
-      nextPageToken: isSet(object.nextPageToken) ? globalThis.String(object.nextPageToken) : "",
-    };
-  },
-
   toJSON(message: ListPlanCheckRunsResponse): unknown {
     const obj: any = {};
     if (message.planCheckRuns?.length) {
@@ -2991,10 +2495,6 @@ export const RunPlanChecksRequest: MessageFns<RunPlanChecksRequest> = {
     return message;
   },
 
-  fromJSON(object: any): RunPlanChecksRequest {
-    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
-  },
-
   toJSON(message: RunPlanChecksRequest): unknown {
     const obj: any = {};
     if (message.name !== "") {
@@ -3036,10 +2536,6 @@ export const RunPlanChecksResponse: MessageFns<RunPlanChecksResponse> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(_: any): RunPlanChecksResponse {
-    return {};
   },
 
   toJSON(_: RunPlanChecksResponse): unknown {
@@ -3103,15 +2599,6 @@ export const BatchCancelPlanCheckRunsRequest: MessageFns<BatchCancelPlanCheckRun
     return message;
   },
 
-  fromJSON(object: any): BatchCancelPlanCheckRunsRequest {
-    return {
-      parent: isSet(object.parent) ? globalThis.String(object.parent) : "",
-      planCheckRuns: globalThis.Array.isArray(object?.planCheckRuns)
-        ? object.planCheckRuns.map((e: any) => globalThis.String(e))
-        : [],
-    };
-  },
-
   toJSON(message: BatchCancelPlanCheckRunsRequest): unknown {
     const obj: any = {};
     if (message.parent !== "") {
@@ -3159,10 +2646,6 @@ export const BatchCancelPlanCheckRunsResponse: MessageFns<BatchCancelPlanCheckRu
     return message;
   },
 
-  fromJSON(_: any): BatchCancelPlanCheckRunsResponse {
-    return {};
-  },
-
   toJSON(_: BatchCancelPlanCheckRunsResponse): unknown {
     const obj: any = {};
     return obj;
@@ -3173,290 +2656,6 @@ export const BatchCancelPlanCheckRunsResponse: MessageFns<BatchCancelPlanCheckRu
   },
   fromPartial(_: DeepPartial<BatchCancelPlanCheckRunsResponse>): BatchCancelPlanCheckRunsResponse {
     const message = createBaseBatchCancelPlanCheckRunsResponse();
-    return message;
-  },
-};
-
-function createBasePreviewPlanRequest(): PreviewPlanRequest {
-  return { project: "", release: "", targets: [], allowOutOfOrder: false };
-}
-
-export const PreviewPlanRequest: MessageFns<PreviewPlanRequest> = {
-  encode(message: PreviewPlanRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.project !== "") {
-      writer.uint32(10).string(message.project);
-    }
-    if (message.release !== "") {
-      writer.uint32(18).string(message.release);
-    }
-    for (const v of message.targets) {
-      writer.uint32(26).string(v!);
-    }
-    if (message.allowOutOfOrder !== false) {
-      writer.uint32(32).bool(message.allowOutOfOrder);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): PreviewPlanRequest {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePreviewPlanRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.project = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.release = reader.string();
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.targets.push(reader.string());
-          continue;
-        }
-        case 4: {
-          if (tag !== 32) {
-            break;
-          }
-
-          message.allowOutOfOrder = reader.bool();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): PreviewPlanRequest {
-    return {
-      project: isSet(object.project) ? globalThis.String(object.project) : "",
-      release: isSet(object.release) ? globalThis.String(object.release) : "",
-      targets: globalThis.Array.isArray(object?.targets) ? object.targets.map((e: any) => globalThis.String(e)) : [],
-      allowOutOfOrder: isSet(object.allowOutOfOrder) ? globalThis.Boolean(object.allowOutOfOrder) : false,
-    };
-  },
-
-  toJSON(message: PreviewPlanRequest): unknown {
-    const obj: any = {};
-    if (message.project !== "") {
-      obj.project = message.project;
-    }
-    if (message.release !== "") {
-      obj.release = message.release;
-    }
-    if (message.targets?.length) {
-      obj.targets = message.targets;
-    }
-    if (message.allowOutOfOrder !== false) {
-      obj.allowOutOfOrder = message.allowOutOfOrder;
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<PreviewPlanRequest>): PreviewPlanRequest {
-    return PreviewPlanRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<PreviewPlanRequest>): PreviewPlanRequest {
-    const message = createBasePreviewPlanRequest();
-    message.project = object.project ?? "";
-    message.release = object.release ?? "";
-    message.targets = object.targets?.map((e) => e) || [];
-    message.allowOutOfOrder = object.allowOutOfOrder ?? false;
-    return message;
-  },
-};
-
-function createBasePreviewPlanResponse(): PreviewPlanResponse {
-  return { plan: undefined, outOfOrderFiles: [], appliedButModifiedFiles: [] };
-}
-
-export const PreviewPlanResponse: MessageFns<PreviewPlanResponse> = {
-  encode(message: PreviewPlanResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.plan !== undefined) {
-      Plan.encode(message.plan, writer.uint32(10).fork()).join();
-    }
-    for (const v of message.outOfOrderFiles) {
-      PreviewPlanResponse_DatabaseFiles.encode(v!, writer.uint32(18).fork()).join();
-    }
-    for (const v of message.appliedButModifiedFiles) {
-      PreviewPlanResponse_DatabaseFiles.encode(v!, writer.uint32(26).fork()).join();
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): PreviewPlanResponse {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePreviewPlanResponse();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.plan = Plan.decode(reader, reader.uint32());
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.outOfOrderFiles.push(PreviewPlanResponse_DatabaseFiles.decode(reader, reader.uint32()));
-          continue;
-        }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.appliedButModifiedFiles.push(PreviewPlanResponse_DatabaseFiles.decode(reader, reader.uint32()));
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): PreviewPlanResponse {
-    return {
-      plan: isSet(object.plan) ? Plan.fromJSON(object.plan) : undefined,
-      outOfOrderFiles: globalThis.Array.isArray(object?.outOfOrderFiles)
-        ? object.outOfOrderFiles.map((e: any) => PreviewPlanResponse_DatabaseFiles.fromJSON(e))
-        : [],
-      appliedButModifiedFiles: globalThis.Array.isArray(object?.appliedButModifiedFiles)
-        ? object.appliedButModifiedFiles.map((e: any) => PreviewPlanResponse_DatabaseFiles.fromJSON(e))
-        : [],
-    };
-  },
-
-  toJSON(message: PreviewPlanResponse): unknown {
-    const obj: any = {};
-    if (message.plan !== undefined) {
-      obj.plan = Plan.toJSON(message.plan);
-    }
-    if (message.outOfOrderFiles?.length) {
-      obj.outOfOrderFiles = message.outOfOrderFiles.map((e) => PreviewPlanResponse_DatabaseFiles.toJSON(e));
-    }
-    if (message.appliedButModifiedFiles?.length) {
-      obj.appliedButModifiedFiles = message.appliedButModifiedFiles.map((e) =>
-        PreviewPlanResponse_DatabaseFiles.toJSON(e)
-      );
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<PreviewPlanResponse>): PreviewPlanResponse {
-    return PreviewPlanResponse.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<PreviewPlanResponse>): PreviewPlanResponse {
-    const message = createBasePreviewPlanResponse();
-    message.plan = (object.plan !== undefined && object.plan !== null) ? Plan.fromPartial(object.plan) : undefined;
-    message.outOfOrderFiles = object.outOfOrderFiles?.map((e) => PreviewPlanResponse_DatabaseFiles.fromPartial(e)) ||
-      [];
-    message.appliedButModifiedFiles =
-      object.appliedButModifiedFiles?.map((e) => PreviewPlanResponse_DatabaseFiles.fromPartial(e)) || [];
-    return message;
-  },
-};
-
-function createBasePreviewPlanResponse_DatabaseFiles(): PreviewPlanResponse_DatabaseFiles {
-  return { database: "", files: [] };
-}
-
-export const PreviewPlanResponse_DatabaseFiles: MessageFns<PreviewPlanResponse_DatabaseFiles> = {
-  encode(message: PreviewPlanResponse_DatabaseFiles, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.database !== "") {
-      writer.uint32(10).string(message.database);
-    }
-    for (const v of message.files) {
-      writer.uint32(18).string(v!);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): PreviewPlanResponse_DatabaseFiles {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePreviewPlanResponse_DatabaseFiles();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.database = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.files.push(reader.string());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): PreviewPlanResponse_DatabaseFiles {
-    return {
-      database: isSet(object.database) ? globalThis.String(object.database) : "",
-      files: globalThis.Array.isArray(object?.files) ? object.files.map((e: any) => globalThis.String(e)) : [],
-    };
-  },
-
-  toJSON(message: PreviewPlanResponse_DatabaseFiles): unknown {
-    const obj: any = {};
-    if (message.database !== "") {
-      obj.database = message.database;
-    }
-    if (message.files?.length) {
-      obj.files = message.files;
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<PreviewPlanResponse_DatabaseFiles>): PreviewPlanResponse_DatabaseFiles {
-    return PreviewPlanResponse_DatabaseFiles.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<PreviewPlanResponse_DatabaseFiles>): PreviewPlanResponse_DatabaseFiles {
-    const message = createBasePreviewPlanResponse_DatabaseFiles();
-    message.database = object.database ?? "";
-    message.files = object.files?.map((e) => e) || [];
     return message;
   },
 };
@@ -3581,23 +2780,6 @@ export const PlanCheckRun: MessageFns<PlanCheckRun> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): PlanCheckRun {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      type: isSet(object.type) ? planCheckRun_TypeFromJSON(object.type) : PlanCheckRun_Type.TYPE_UNSPECIFIED,
-      status: isSet(object.status)
-        ? planCheckRun_StatusFromJSON(object.status)
-        : PlanCheckRun_Status.STATUS_UNSPECIFIED,
-      target: isSet(object.target) ? globalThis.String(object.target) : "",
-      sheet: isSet(object.sheet) ? globalThis.String(object.sheet) : "",
-      results: globalThis.Array.isArray(object?.results)
-        ? object.results.map((e: any) => PlanCheckRun_Result.fromJSON(e))
-        : [],
-      error: isSet(object.error) ? globalThis.String(object.error) : "",
-      createTime: isSet(object.createTime) ? fromJsonTimestamp(object.createTime) : undefined,
-    };
   },
 
   toJSON(message: PlanCheckRun): unknown {
@@ -3746,23 +2928,6 @@ export const PlanCheckRun_Result: MessageFns<PlanCheckRun_Result> = {
     return message;
   },
 
-  fromJSON(object: any): PlanCheckRun_Result {
-    return {
-      status: isSet(object.status)
-        ? planCheckRun_Result_StatusFromJSON(object.status)
-        : PlanCheckRun_Result_Status.STATUS_UNSPECIFIED,
-      title: isSet(object.title) ? globalThis.String(object.title) : "",
-      content: isSet(object.content) ? globalThis.String(object.content) : "",
-      code: isSet(object.code) ? globalThis.Number(object.code) : 0,
-      sqlSummaryReport: isSet(object.sqlSummaryReport)
-        ? PlanCheckRun_Result_SqlSummaryReport.fromJSON(object.sqlSummaryReport)
-        : undefined,
-      sqlReviewReport: isSet(object.sqlReviewReport)
-        ? PlanCheckRun_Result_SqlReviewReport.fromJSON(object.sqlReviewReport)
-        : undefined,
-    };
-  },
-
   toJSON(message: PlanCheckRun_Result): unknown {
     const obj: any = {};
     if (message.status !== PlanCheckRun_Result_Status.STATUS_UNSPECIFIED) {
@@ -3863,16 +3028,6 @@ export const PlanCheckRun_Result_SqlSummaryReport: MessageFns<PlanCheckRun_Resul
     return message;
   },
 
-  fromJSON(object: any): PlanCheckRun_Result_SqlSummaryReport {
-    return {
-      statementTypes: globalThis.Array.isArray(object?.statementTypes)
-        ? object.statementTypes.map((e: any) => globalThis.String(e))
-        : [],
-      affectedRows: isSet(object.affectedRows) ? globalThis.Number(object.affectedRows) : 0,
-      changedResources: isSet(object.changedResources) ? ChangedResources.fromJSON(object.changedResources) : undefined,
-    };
-  },
-
   toJSON(message: PlanCheckRun_Result_SqlSummaryReport): unknown {
     const obj: any = {};
     if (message.statementTypes?.length) {
@@ -3968,15 +3123,6 @@ export const PlanCheckRun_Result_SqlReviewReport: MessageFns<PlanCheckRun_Result
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): PlanCheckRun_Result_SqlReviewReport {
-    return {
-      line: isSet(object.line) ? globalThis.Number(object.line) : 0,
-      column: isSet(object.column) ? globalThis.Number(object.column) : 0,
-      startPosition: isSet(object.startPosition) ? Position.fromJSON(object.startPosition) : undefined,
-      endPosition: isSet(object.endPosition) ? Position.fromJSON(object.endPosition) : undefined,
-    };
   },
 
   toJSON(message: PlanCheckRun_Result_SqlReviewReport): unknown {
@@ -4589,65 +3735,6 @@ export const PlanServiceDefinition = {
         },
       },
     },
-    previewPlan: {
-      name: "PreviewPlan",
-      requestType: PreviewPlanRequest,
-      requestStream: false,
-      responseType: PreviewPlanResponse,
-      responseStream: false,
-      options: {
-        _unknownFields: {
-          800010: [new Uint8Array([16, 98, 98, 46, 112, 108, 97, 110, 115, 46, 112, 114, 101, 118, 105, 101, 119])],
-          800016: [new Uint8Array([1])],
-          578365826: [
-            new Uint8Array([
-              41,
-              58,
-              1,
-              42,
-              34,
-              36,
-              47,
-              118,
-              49,
-              47,
-              123,
-              112,
-              114,
-              111,
-              106,
-              101,
-              99,
-              116,
-              61,
-              112,
-              114,
-              111,
-              106,
-              101,
-              99,
-              116,
-              115,
-              47,
-              42,
-              125,
-              58,
-              112,
-              114,
-              101,
-              118,
-              105,
-              101,
-              119,
-              80,
-              108,
-              97,
-              110,
-            ]),
-          ],
-        },
-      },
-    },
   },
 } as const;
 
@@ -4659,44 +3746,15 @@ export type DeepPartial<T> = T extends Builtin ? T
   : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
 
-function toTimestamp(date: Date): Timestamp {
-  const seconds = numberToLong(Math.trunc(date.getTime() / 1_000));
-  const nanos = (date.getTime() % 1_000) * 1_000_000;
-  return { seconds, nanos };
-}
-
 function fromTimestamp(t: Timestamp): Date {
   let millis = (t.seconds.toNumber() || 0) * 1_000;
   millis += (t.nanos || 0) / 1_000_000;
   return new globalThis.Date(millis);
 }
 
-function fromJsonTimestamp(o: any): Timestamp {
-  if (o instanceof globalThis.Date) {
-    return toTimestamp(o);
-  } else if (typeof o === "string") {
-    return toTimestamp(new globalThis.Date(o));
-  } else {
-    return Timestamp.fromJSON(o);
-  }
-}
-
-function numberToLong(number: number) {
-  return Long.fromNumber(number);
-}
-
-function isObject(value: any): boolean {
-  return typeof value === "object" && value !== null;
-}
-
-function isSet(value: any): boolean {
-  return value !== null && value !== undefined;
-}
-
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;
   decode(input: BinaryReader | Uint8Array, length?: number): T;
-  fromJSON(object: any): T;
   toJSON(message: T): unknown;
   create(base?: DeepPartial<T>): T;
   fromPartial(object: DeepPartial<T>): T;

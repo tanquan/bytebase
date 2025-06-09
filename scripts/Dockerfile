@@ -1,4 +1,4 @@
-FROM node:23.11.0-slim AS frontend
+FROM node:23.11.1-slim AS frontend
 ARG GIT_COMMIT
 
 RUN npm i -g pnpm@10.9.0
@@ -10,7 +10,7 @@ COPY . .
 RUN pnpm --dir ./frontend i
 RUN pnpm --dir ./frontend release-docker
 
-FROM golang:1.24.2-alpine3.21 AS backend
+FROM golang:1.24.3-alpine3.21 AS backend
 ARG VERSION
 ARG GIT_COMMIT
 ARG RELEASE="release"
@@ -34,7 +34,7 @@ RUN CC=clang go build \
   -o bytebase ./backend/bin/server/main.go
 
 # Use debian because mysql requires glibc.
-FROM alpine:3.21 AS monolithic
+FROM alpine:3.22 AS monolithic
 ARG VERSION
 ARG GIT_COMMIT
 

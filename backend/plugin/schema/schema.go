@@ -20,6 +20,8 @@ var (
 	getFunctionDefinitions         = make(map[storepb.Engine]getFunctionDefinition)
 	getProcedureDefinitions        = make(map[storepb.Engine]getProcedureDefinition)
 	getSequenceDefinitions         = make(map[storepb.Engine]getSequenceDefinition)
+	getDatabaseMetadataMap         = make(map[storepb.Engine]getDatabaseMetadata)
+	generateMigrations             = make(map[storepb.Engine]generateMigration)
 )
 
 type checkColumnType func(string) bool
@@ -31,6 +33,8 @@ type getMaterializedViewDefinition func(string, *storepb.MaterializedViewMetadat
 type getFunctionDefinition func(string, *storepb.FunctionMetadata) (string, error)
 type getProcedureDefinition func(string, *storepb.ProcedureMetadata) (string, error)
 type getSequenceDefinition func(string, *storepb.SequenceMetadata) (string, error)
+type getDatabaseMetadata func(string) (*storepb.DatabaseSchemaMetadata, error)
+type generateMigration func(*MetadataDiff) (string, error)
 
 type GetDefinitionContext struct {
 	SkipBackupSchema bool
@@ -188,4 +192,38 @@ func CheckColumnType(engine storepb.Engine, tp string) bool {
 		return false
 	}
 	return f(tp)
+}
+
+func RegisterGetDatabaseMetadata(engine storepb.Engine, f getDatabaseMetadata) {
+	mux.Lock()
+	defer mux.Unlock()
+	if _, dup := getDatabaseMetadataMap[engine]; dup {
+		panic(fmt.Sprintf("Register called twice %s", engine))
+	}
+	getDatabaseMetadataMap[engine] = f
+}
+
+func GetDatabaseMetadata(engine storepb.Engine, schemaText string) (*storepb.DatabaseSchemaMetadata, error) {
+	f, ok := getDatabaseMetadataMap[engine]
+	if !ok {
+		return nil, errors.Errorf("engine %s is not supported", engine)
+	}
+	return f(schemaText)
+}
+
+func RegisterGenerateMigration(engine storepb.Engine, f generateMigration) {
+	mux.Lock()
+	defer mux.Unlock()
+	if _, dup := generateMigrations[engine]; dup {
+		panic(fmt.Sprintf("Register called twice %s", engine))
+	}
+	generateMigrations[engine] = f
+}
+
+func GenerateMigration(engine storepb.Engine, diff *MetadataDiff) (string, error) {
+	f, ok := generateMigrations[engine]
+	if !ok {
+		return "", errors.Errorf("engine %s is not supported", engine)
+	}
+	return f(diff)
 }

@@ -12,17 +12,16 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/common/log"
 	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
 )
 
 var systemBotUser = &UserMessage{
-	ID:    base.SystemBotID,
+	ID:    common.SystemBotID,
 	Name:  "Bytebase",
 	Email: "support@bytebase.com",
-	Type:  base.SystemBot,
+	Type:  storepb.PrincipalType_SYSTEM_BOT,
 }
 
 // FindUserMessage is the message for finding users.
@@ -30,7 +29,7 @@ type FindUserMessage struct {
 	ID          *int
 	Email       *string
 	ShowDeleted bool
-	Type        *base.PrincipalType
+	Type        *storepb.PrincipalType
 	Limit       *int
 	Offset      *int
 	Filter      *ListResourceFilter
@@ -54,7 +53,7 @@ type UserMessage struct {
 	// Email must be lower case.
 	Email         string
 	Name          string
-	Type          base.PrincipalType
+	Type          storepb.PrincipalType
 	PasswordHash  string
 	MemberDeleted bool
 	MFAConfig     *storepb.MFAConfig
@@ -66,16 +65,16 @@ type UserMessage struct {
 }
 
 type UserStat struct {
-	Type    base.PrincipalType
+	Type    storepb.PrincipalType
 	Deleted bool
 	Count   int
 }
 
 // GetSystemBotUser gets the system bot.
 func (s *Store) GetSystemBotUser(ctx context.Context) *UserMessage {
-	user, err := s.GetUserByID(ctx, base.SystemBotID)
+	user, err := s.GetUserByID(ctx, common.SystemBotID)
 	if err != nil {
-		slog.Error("failed to find system bot", slog.Int("id", base.SystemBotID), log.BBError(err))
+		slog.Error("failed to find system bot", slog.Int("id", common.SystemBotID), log.BBError(err))
 		return systemBotUser
 	}
 	if user == nil {
@@ -129,12 +128,18 @@ func (s *Store) StatUsers(ctx context.Context) ([]*UserStat, error) {
 
 	for rows.Next() {
 		var stat UserStat
+		var typeString string
 		if err := rows.Scan(
 			&stat.Count,
-			&stat.Type,
+			&typeString,
 			&stat.Deleted,
 		); err != nil {
 			return nil, err
+		}
+		if typeValue, ok := storepb.PrincipalType_value[typeString]; ok {
+			stat.Type = storepb.PrincipalType(typeValue)
+		} else {
+			return nil, errors.Errorf("invalid principal type string: %s", typeString)
 		}
 		stats = append(stats, &stat)
 	}
@@ -203,14 +208,14 @@ func listUserImpl(ctx context.Context, txn *sql.Tx, find *FindUserMessage) ([]*U
 		where, args = append(where, fmt.Sprintf("principal.id = $%d", len(args)+1)), append(args, *v)
 	}
 	if v := find.Email; v != nil {
-		if *v == base.AllUsers {
+		if *v == common.AllUsers {
 			where, args = append(where, fmt.Sprintf("principal.email = $%d", len(args)+1)), append(args, *v)
 		} else {
 			where, args = append(where, fmt.Sprintf("principal.email = $%d", len(args)+1)), append(args, strings.ToLower(*v))
 		}
 	}
 	if v := find.Type; v != nil {
-		where, args = append(where, fmt.Sprintf("principal.type = $%d", len(args)+1)), append(args, *v)
+		where, args = append(where, fmt.Sprintf("principal.type = $%d", len(args)+1)), append(args, v.String())
 	}
 	if !find.ShowDeleted {
 		where, args = append(where, fmt.Sprintf("principal.deleted = $%d", len(args)+1)), append(args, false)
@@ -223,12 +228,12 @@ func listUserImpl(ctx context.Context, txn *sql.Tx, find *FindUserMessage) ([]*U
 				jsonb_array_elements_text(jsonb_array_elements(policy.payload->'bindings')->'members') AS member,
 				jsonb_array_elements(policy.payload->'bindings')->>'role' AS role
 			FROM policy
-			WHERE ((resource_type = '` + string(base.PolicyResourceTypeProject) + `' AND resource = 'projects/` + *v + `') OR resource_type = '` + string(base.PolicyResourceTypeWorkspace) + `') AND type = '` + string(base.PolicyTypeIAM) + `'
+			WHERE ((resource_type = '` + storepb.Policy_PROJECT.String() + `' AND resource = 'projects/` + *v + `') OR resource_type = '` + storepb.Policy_WORKSPACE.String() + `') AND type = '` + storepb.Policy_IAM.String() + `'
 		),
 		project_members AS (
 			SELECT ARRAY_AGG(member) AS members FROM all_members WHERE role LIKE 'roles/project%'
 		)`
-		join = `INNER JOIN project_members ON (CONCAT('users/', principal.id) = ANY(project_members.members) OR '` + base.AllUsers + `' = ANY(project_members.members))`
+		join = `INNER JOIN project_members ON (CONCAT('users/', principal.id) = ANY(project_members.members) OR '` + common.AllUsers + `' = ANY(project_members.members))`
 	}
 
 	query := with + `
@@ -262,12 +267,13 @@ func listUserImpl(ctx context.Context, txn *sql.Tx, find *FindUserMessage) ([]*U
 		var userMessage UserMessage
 		var mfaConfigBytes []byte
 		var profileBytes []byte
+		var typeString string
 		if err := rows.Scan(
 			&userMessage.ID,
 			&userMessage.MemberDeleted,
 			&userMessage.Email,
 			&userMessage.Name,
-			&userMessage.Type,
+			&typeString,
 			&userMessage.PasswordHash,
 			&mfaConfigBytes,
 			&userMessage.Phone,
@@ -275,6 +281,11 @@ func listUserImpl(ctx context.Context, txn *sql.Tx, find *FindUserMessage) ([]*U
 			&userMessage.CreatedAt,
 		); err != nil {
 			return nil, err
+		}
+		if typeValue, ok := storepb.PrincipalType_value[typeString]; ok {
+			userMessage.Type = storepb.PrincipalType(typeValue)
+		} else {
+			return nil, errors.Errorf("invalid principal type string: %s", typeString)
 		}
 
 		mfaConfig := storepb.MFAConfig{}
@@ -320,7 +331,7 @@ func (s *Store) CreateUser(ctx context.Context, create *UserMessage) (*UserMessa
 	}
 
 	set := []string{"email", "name", "type", "password_hash", "phone", "profile"}
-	args := []any{create.Email, create.Name, create.Type, create.PasswordHash, create.Phone, profileBytes}
+	args := []any{create.Email, create.Name, create.Type.String(), create.PasswordHash, create.Phone, profileBytes}
 	placeholder := []string{}
 	for index := range set {
 		placeholder = append(placeholder, fmt.Sprintf("$%d", index+1))
@@ -361,7 +372,7 @@ func (s *Store) CreateUser(ctx context.Context, create *UserMessage) (*UserMessa
 
 // UpdateUser updates a user.
 func (s *Store) UpdateUser(ctx context.Context, currentUser *UserMessage, patch *UpdateUserMessage) (*UserMessage, error) {
-	if currentUser.ID == base.SystemBotID {
+	if currentUser.ID == common.SystemBotID {
 		return nil, errors.Errorf("cannot update system bot")
 	}
 

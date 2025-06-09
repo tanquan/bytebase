@@ -7,10 +7,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/bytebase/bytebase/backend/base"
+	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/component/iam"
 	"github.com/bytebase/bytebase/backend/store"
 	"github.com/bytebase/bytebase/backend/utils"
+	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
 	v1pb "github.com/bytebase/bytebase/proto/generated-go/v1"
 )
 
@@ -47,11 +48,15 @@ func (s *WorkspaceService) SetIamPolicy(ctx context.Context, request *v1pb.SetIa
 		return nil, status.Errorf(codes.Aborted, "there is concurrent update to the workspace iam policy, please refresh and try again.")
 	}
 
+	if _, err := validateIAMPolicy(ctx, s.store, s.iamManager, request.Policy, policyMessage); err != nil {
+		return nil, err
+	}
+
 	iamPolicy, err := convertToStoreIamPolicy(ctx, s.store, request.Policy)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to convert iam policy with error: %v", err.Error())
+		return nil, err
 	}
-	users := utils.GetUsersByRoleInIAMPolicy(ctx, s.store, base.WorkspaceAdmin, iamPolicy)
+	users := utils.GetUsersByRoleInIAMPolicy(ctx, s.store, common.WorkspaceAdmin, iamPolicy)
 	if !containsActiveEndUser(users) {
 		return nil, status.Errorf(codes.InvalidArgument, "workspace must have at least one admin")
 	}
@@ -62,8 +67,8 @@ func (s *WorkspaceService) SetIamPolicy(ctx context.Context, request *v1pb.SetIa
 	}
 	payloadStr := string(payloadBytes)
 	patch := &store.UpdatePolicyMessage{
-		ResourceType: base.PolicyResourceTypeWorkspace,
-		Type:         base.PolicyTypeIAM,
+		ResourceType: storepb.Policy_WORKSPACE,
+		Type:         storepb.Policy_IAM,
 		Payload:      &payloadStr,
 	}
 
@@ -85,7 +90,7 @@ func (s *WorkspaceService) SetIamPolicy(ctx context.Context, request *v1pb.SetIa
 
 func containsActiveEndUser(users []*store.UserMessage) bool {
 	for _, user := range users {
-		if user.Type == base.EndUser && !user.MemberDeleted {
+		if user.Type == storepb.PrincipalType_END_USER && !user.MemberDeleted {
 			return true
 		}
 	}

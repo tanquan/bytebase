@@ -58,9 +58,9 @@ CREATE TABLE policy (
     id serial PRIMARY KEY,
     enforce boolean NOT NULL DEFAULT TRUE,
     updated_at timestamptz NOT NULL DEFAULT now(),
-    resource_type text NOT NULL CHECK (resource_type IN ('WORKSPACE', 'ENVIRONMENT', 'PROJECT', 'INSTANCE')),
+    resource_type text NOT NULL,
     resource TEXT NOT NULL,
-    type text NOT NULL CHECK (type LIKE 'bb.policy.%'),
+    type text NOT NULL,
     payload jsonb NOT NULL DEFAULT '{}',
     inherit_from_parent boolean NOT NULL DEFAULT TRUE
 );
@@ -88,7 +88,7 @@ CREATE TABLE project_webhook (
     type text NOT NULL CHECK (type LIKE 'bb.plugin.webhook.%'),
     name text NOT NULL,
     url text NOT NULL,
-    activity_list text ARRAY NOT NULL,
+    event_list text ARRAY NOT NULL,
     payload jsonb NOT NULL DEFAULT '{}'
 );
 
@@ -184,30 +184,18 @@ CREATE TABLE pipeline (
 
 ALTER SEQUENCE pipeline_id_seq RESTART WITH 101;
 
--- stage table stores the stage for the pipeline
-CREATE TABLE stage (
-    id serial PRIMARY KEY,
-    pipeline_id integer NOT NULL REFERENCES pipeline(id),
-    environment text
-);
-
-CREATE INDEX idx_stage_pipeline_id ON stage(pipeline_id);
-
-ALTER SEQUENCE stage_id_seq RESTART WITH 101;
-
--- task table stores the task for the stage
+-- task table stores the task for the pipeline
 CREATE TABLE task (
     id serial PRIMARY KEY,
     pipeline_id integer NOT NULL REFERENCES pipeline(id),
-    stage_id integer NOT NULL REFERENCES stage(id),
     instance text NOT NULL REFERENCES instance(resource_id),
+    environment text,
     db_name text,
-    type text NOT NULL CHECK (type LIKE 'bb.task.%'),
-    payload jsonb NOT NULL DEFAULT '{}',
-    earliest_allowed_at timestamptz NULL
+    type text NOT NULL,
+    payload jsonb NOT NULL DEFAULT '{}'
 );
 
-CREATE INDEX idx_task_pipeline_id_stage_id ON task(pipeline_id, stage_id);
+CREATE INDEX idx_task_pipeline_id_environment ON task(pipeline_id, environment);
 
 ALTER SEQUENCE task_id_seq RESTART WITH 101;
 
@@ -295,7 +283,7 @@ CREATE TABLE issue (
     pipeline_id integer REFERENCES pipeline(id),
     name text NOT NULL,
     status text NOT NULL CHECK (status IN ('OPEN', 'DONE', 'CANCELED')),
-    type text NOT NULL CHECK (type LIKE 'bb.issue.%'),
+    type text NOT NULL,
     description text NOT NULL DEFAULT '',
     payload jsonb NOT NULL DEFAULT '{}',
     ts_vector tsvector

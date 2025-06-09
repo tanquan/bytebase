@@ -9,7 +9,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/plugin/advisor"
 	"github.com/bytebase/bytebase/backend/plugin/advisor/catalog"
@@ -44,25 +43,13 @@ func (s *ReleaseService) CheckRelease(ctx context.Context, request *v1pb.CheckRe
 	var targetDatabases []*store.DatabaseMessage
 	for _, target := range request.Targets {
 		// Handle database target.
-		if instanceID, databaseName, err := common.GetInstanceDatabaseID(target); err == nil {
-			instance, err := s.store.GetInstanceV2(ctx, &store.FindInstanceMessage{
-				ResourceID: &instanceID,
-			})
+		if _, _, err := common.GetInstanceDatabaseID(target); err == nil {
+			database, err := getDatabaseMessage(ctx, s.store, target)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "failed to get instance, error: %v", err)
+				return nil, status.Errorf(codes.Internal, "failed to found database %v", target)
 			}
-			if instance == nil {
-				return nil, status.Errorf(codes.NotFound, "instance %q not found", instanceID)
-			}
-			database, err := s.store.GetDatabaseV2(ctx, &store.FindDatabaseMessage{
-				InstanceID:   &instanceID,
-				DatabaseName: &databaseName,
-			})
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "failed to get database, error: %v", err)
-			}
-			if database == nil {
-				return nil, status.Errorf(codes.NotFound, "database %q not found", target)
+			if database == nil || database.Deleted {
+				return nil, status.Errorf(codes.NotFound, "database %v not found", target)
 			}
 			targetDatabases = append(targetDatabases, database)
 		}
@@ -133,10 +120,6 @@ func (s *ReleaseService) CheckRelease(ctx context.Context, request *v1pb.CheckRe
 		if instance == nil {
 			return nil, status.Errorf(codes.NotFound, "instance %q not found", database.InstanceID)
 		}
-		// Continue if the instance is not supported by SQL review.
-		if !base.EngineSupportSQLReview(instance.Metadata.GetEngine()) {
-			continue
-		}
 
 		catalog, err := catalog.NewCatalog(ctx, s.store, database.InstanceID, database.DatabaseName, instance.Metadata.GetEngine(), store.IsObjectCaseSensitive(instance), nil)
 		if err != nil {
@@ -146,23 +129,56 @@ func (s *ReleaseService) CheckRelease(ctx context.Context, request *v1pb.CheckRe
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to list risks: %v", err)
 		}
+
+		// Collect all versions for batch fetching
+		versions := make([]string, 0, len(request.Release.Files))
+		for _, file := range request.Release.Files {
+			versions = append(versions, file.Version)
+		}
+
+		// Batch fetch all revisions for this database
+		revisions, err := s.store.ListRevisions(ctx, &store.FindRevisionMessage{
+			InstanceID:   &database.InstanceID,
+			DatabaseName: &database.DatabaseName,
+			Versions:     &versions,
+			ShowDeleted:  false,
+		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to list revisions: %v", err)
+		}
+
+		// Create a map for quick lookup
+		revisionMap := make(map[string]*store.RevisionMessage)
+		for _, revision := range revisions {
+			revisionMap[revision.Version] = revision
+		}
+
 		for _, file := range request.Release.Files {
 			if stopChecking {
 				break
 			}
 
 			// Check if file has been applied to database.
-			revisions, err := s.store.ListRevisions(ctx, &store.FindRevisionMessage{
-				InstanceID:   &database.InstanceID,
-				DatabaseName: &database.DatabaseName,
-				Version:      &file.Version,
-				ShowDeleted:  false,
-			})
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "failed to list revisions: %v", err)
-			}
-			if len(revisions) > 0 {
-				// Skip the file if it has been applied to the database.
+			if appliedRevision, ok := revisionMap[file.Version]; ok {
+				// Check if the SHA256 matches
+				if appliedRevision.Payload.SheetSha256 != file.SheetSha256 {
+					// Add a warning advice if SHA256 mismatch
+					checkResult := &v1pb.CheckReleaseResponse_CheckResult{
+						File:   file.Path,
+						Target: fmt.Sprintf("instances/%s/databases/%s", instance.ResourceID, database.DatabaseName),
+						Advices: []*v1pb.Advice{
+							{
+								Status:  v1pb.Advice_WARNING,
+								Code:    advisor.Internal.Int32(),
+								Title:   "Applied file has been modified",
+								Content: fmt.Sprintf("The file %q with version %q has already been applied to the database, but its content has been modified. Applied SHA256: %s, Release SHA256: %s", file.Path, file.Version, appliedRevision.Payload.SheetSha256, file.SheetSha256),
+							},
+						},
+					}
+					response.Results = append(response.Results, checkResult)
+					warningAdviceCount++
+				}
+				// Skip the file since it has been applied to the database.
 				continue
 			}
 
@@ -219,13 +235,15 @@ func (s *ReleaseService) CheckRelease(ctx context.Context, request *v1pb.CheckRe
 						}
 						checkResult.RiskLevel = riskLevelEnum
 					}
-					adviceStatus, sqlReviewAdvices, err := s.runSQLReviewCheckForFile(ctx, catalog, instance, database, changeType, statement)
-					if err != nil {
-						return nil, status.Errorf(codes.Internal, "failed to check SQL review: %v", err)
-					}
-					// If the advice status is not SUCCESS, we will add the file and advices to the response.
-					if adviceStatus != storepb.Advice_SUCCESS {
-						checkResult.Advices = sqlReviewAdvices
+					if common.EngineSupportSQLReview(instance.Metadata.GetEngine()) {
+						adviceStatus, sqlReviewAdvices, err := s.runSQLReviewCheckForFile(ctx, catalog, instance, database, changeType, statement)
+						if err != nil {
+							return nil, status.Errorf(codes.Internal, "failed to check SQL review: %v", err)
+						}
+						// If the advice status is not SUCCESS, we will add the file and advices to the response.
+						if adviceStatus != storepb.Advice_SUCCESS {
+							checkResult.Advices = sqlReviewAdvices
+						}
 					}
 				}
 				return checkResult, nil

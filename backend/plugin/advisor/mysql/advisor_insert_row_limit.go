@@ -23,7 +23,6 @@ var (
 func init() {
 	advisor.Register(storepb.Engine_MYSQL, advisor.MySQLInsertRowLimit, &InsertRowLimitAdvisor{})
 	advisor.Register(storepb.Engine_MARIADB, advisor.MySQLInsertRowLimit, &InsertRowLimitAdvisor{})
-	advisor.Register(storepb.Engine_OCEANBASE, advisor.MySQLInsertRowLimit, &InsertRowLimitAdvisor{})
 }
 
 // NamingTableConventionAdvisor is the advisor checking for table naming convention.

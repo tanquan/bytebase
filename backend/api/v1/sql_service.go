@@ -49,11 +49,6 @@ import (
 	v1pb "github.com/bytebase/bytebase/proto/generated-go/v1"
 )
 
-const (
-	backupDatabaseName       = "bbdataarchive"
-	oracleBackupDatabaseName = "BBDATAARCHIVE"
-)
-
 // SQLService is the service for SQL.
 type SQLService struct {
 	v1pb.UnimplementedSQLServiceServer
@@ -174,7 +169,7 @@ func (s *SQLService) Query(ctx context.Context, request *v1pb.QueryRequest) (*v1
 
 	// Validate the request.
 	// New query ACL experience.
-	if !request.Explain && !base.EngineSupportQueryNewACL(instance.Metadata.GetEngine()) {
+	if !request.Explain && !common.EngineSupportQueryNewACL(instance.Metadata.GetEngine()) {
 		if err := validateQueryRequest(instance, statement); err != nil {
 			return nil, err
 		}
@@ -302,7 +297,7 @@ func extractSourceTable(comment string) (string, string, string, error) {
 func getSchemaMetadata(engine storepb.Engine, dbSchema *model.DatabaseSchema) *model.SchemaMetadata {
 	switch engine {
 	case storepb.Engine_POSTGRES:
-		return dbSchema.GetDatabaseMetadata().GetSchema(backupDatabaseName)
+		return dbSchema.GetDatabaseMetadata().GetSchema(common.BackupDatabaseNameOfEngine(storepb.Engine_POSTGRES))
 	case storepb.Engine_MSSQL:
 		return dbSchema.GetDatabaseMetadata().GetSchema("dbo")
 	default:
@@ -316,11 +311,11 @@ func replaceBackupTableWithSource(ctx context.Context, stores *store.Store, inst
 		// Don't need to check the database name for postgres here.
 		// We backup the table to the same database with bbdataarchive schema for Postgres.
 	case storepb.Engine_ORACLE:
-		if database.DatabaseName != oracleBackupDatabaseName {
+		if database.DatabaseName != common.BackupDatabaseNameOfEngine(storepb.Engine_ORACLE) {
 			return nil
 		}
 	default:
-		if database.DatabaseName != backupDatabaseName {
+		if database.DatabaseName != common.BackupDatabaseNameOfEngine(instance.Metadata.GetEngine()) {
 			return nil
 		}
 	}
@@ -390,11 +385,11 @@ func generateNewColumn(engine storepb.Engine, column parserbase.ColumnResource, 
 func isBackupTable(engine storepb.Engine, column parserbase.ColumnResource) bool {
 	switch engine {
 	case storepb.Engine_POSTGRES:
-		return column.Schema == backupDatabaseName
+		return column.Schema == common.BackupDatabaseNameOfEngine(storepb.Engine_POSTGRES)
 	case storepb.Engine_ORACLE:
-		return column.Database == oracleBackupDatabaseName
+		return column.Database == common.BackupDatabaseNameOfEngine(storepb.Engine_ORACLE)
 	default:
-		return column.Database == backupDatabaseName
+		return column.Database == common.BackupDatabaseNameOfEngine(engine)
 	}
 }
 
@@ -735,7 +730,11 @@ func (s *SQLService) Export(ctx context.Context, request *v1pb.ExportRequest) (*
 		}
 	}
 
-	bytes, duration, exportErr := DoExport(ctx, s.store, s.dbFactory, s.licenseService, request, user, instance, database, s.accessCheck, s.schemaSyncer)
+	dataSource, err := checkAndGetDataSourceQueriable(ctx, s.store, database, request.DataSourceId)
+	if err != nil {
+		return nil, err
+	}
+	bytes, duration, exportErr := DoExport(ctx, s.store, s.dbFactory, s.licenseService, request, user, instance, database, s.accessCheck, s.schemaSyncer, dataSource)
 
 	if err := s.createQueryHistory(ctx, database, store.QueryHistoryTypeExport, statement, user.ID, duration, exportErr); err != nil {
 		return nil, err
@@ -750,65 +749,74 @@ func (s *SQLService) Export(ctx context.Context, request *v1pb.ExportRequest) (*
 	}, nil
 }
 
-func (s *SQLService) doExportFromIssue(ctx context.Context, issueName string) (*v1pb.ExportResponse, error) {
-	issueUID, err := common.GetIssueID(issueName)
+func (s *SQLService) doExportFromIssue(ctx context.Context, requestName string) (*v1pb.ExportResponse, error) {
+	_, rolloutID, _, err := common.GetProjectIDRolloutIDMaybeStageID(requestName)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to get issue ID: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse rollout ID: %v", err)
 	}
-	issue, err := s.store.GetIssueV2(ctx, &store.FindIssueMessage{UID: &issueUID})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get issue: %v", err)
-	}
-	user, ok := ctx.Value(common.UserContextKey).(*store.UserMessage)
-	if !ok {
-		return nil, status.Errorf(codes.Internal, "user not found")
-	}
-	if user.ID != issue.Creator.ID {
-		return nil, status.Errorf(codes.PermissionDenied, "only the issue creator can download")
-	}
-	if issue.PipelineUID == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "issue %s has no pipeline", issueName)
-	}
-	rollout, err := s.store.GetRollout(ctx, *issue.PipelineUID)
+	rollout, err := s.store.GetRollout(ctx, rolloutID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get rollout: %v", err)
 	}
 	if rollout == nil {
-		return nil, status.Errorf(codes.NotFound, "rollout %d not found", *issue.PipelineUID)
+		return nil, status.Errorf(codes.NotFound, "rollout %d not found", rolloutID)
 	}
+
 	tasks, err := s.store.ListTasks(ctx, &store.TaskFind{PipelineID: &rollout.ID})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get tasks: %v", err)
 	}
-	if len(tasks) != 1 {
-		return nil, status.Errorf(codes.InvalidArgument, "issue %s has unmatched tasks", issueName)
+	if len(tasks) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "rollout %d has no task", rollout.ID)
 	}
-	task := tasks[0]
-	taskRuns, err := s.store.ListTaskRunsV2(ctx, &store.FindTaskRunMessage{TaskUID: &task.ID})
+
+	exportArchiveUIDs := []int{}
+	contents := []*exportData{}
+
+	for _, task := range tasks {
+		taskRuns, err := s.store.ListTaskRunsV2(ctx, &store.FindTaskRunMessage{TaskUID: &task.ID})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to get task run: %v", err)
+		}
+		if len(taskRuns) == 0 {
+			return nil, status.Errorf(codes.InvalidArgument, "rollout %v has no task run", requestName)
+		}
+		taskRun := taskRuns[0]
+		exportArchiveUID := int(taskRun.ResultProto.ExportArchiveUid)
+		if exportArchiveUID == 0 {
+			return nil, status.Errorf(codes.InvalidArgument, "issue %v has no export archive", requestName)
+		}
+		exportArchive, err := s.store.GetExportArchive(ctx, &store.FindExportArchiveMessage{UID: &exportArchiveUID})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to get export archive: %v", err)
+		}
+		if exportArchive == nil {
+			return nil, status.Errorf(codes.NotFound, "export archive %d not found", exportArchiveUID)
+		}
+		exportArchiveUIDs = append(exportArchiveUIDs, exportArchiveUID)
+		contents = append(contents, &exportData{
+			Content:  exportArchive.Bytes,
+			Database: task.GetDatabaseName(),
+		})
+	}
+
+	encryptedBytes, err := doEncrypt(contents, &v1pb.ExportRequest{
+		Password: tasks[0].Payload.GetPassword(),
+		Format:   v1pb.ExportFormat(tasks[0].Payload.GetFormat()),
+	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get task run: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to encrypt data: %v", err)
 	}
-	if len(taskRuns) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "issue %s has no task run", issueName)
+
+	for _, exportArchiveUID := range exportArchiveUIDs {
+		// Delete the export archive after it's fetched.
+		if err := s.store.DeleteExportArchive(ctx, exportArchiveUID); err != nil {
+			slog.Error("failed to delete export archive", log.BBError(err), slog.String("rollout", requestName), slog.Int("archive", exportArchiveUID))
+		}
 	}
-	taskRun := taskRuns[len(taskRuns)-1]
-	exportArchiveUID := int(taskRun.ResultProto.ExportArchiveUid)
-	if exportArchiveUID == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "issue %s has no export archive", issueName)
-	}
-	exportArchive, err := s.store.GetExportArchive(ctx, &store.FindExportArchiveMessage{UID: &exportArchiveUID})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get export archive: %v", err)
-	}
-	if exportArchive == nil {
-		return nil, status.Errorf(codes.NotFound, "export archive %d not found", exportArchiveUID)
-	}
-	// Delete the export archive after it's fetched.
-	if err := s.store.DeleteExportArchive(ctx, exportArchiveUID); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete export archive: %v", err)
-	}
+
 	return &v1pb.ExportResponse{
-		Content: exportArchive.Bytes,
+		Content: encryptedBytes,
 	}, nil
 }
 
@@ -824,10 +832,10 @@ func DoExport(
 	database *store.DatabaseMessage,
 	optionalAccessCheck accessCheckFunc,
 	schemaSyncer *schemasync.Syncer,
+	dataSource *storepb.DataSource,
 ) ([]byte, time.Duration, error) {
-	dataSource, err := checkAndGetDataSourceQueriable(ctx, stores, database, request.DataSourceId)
-	if err != nil {
-		return nil, 0, err
+	if dataSource == nil {
+		return nil, 0, status.Errorf(codes.NotFound, "cannot found valid data source")
 	}
 	driver, err := dbFactory.GetDataSourceDriver(ctx, instance, dataSource, db.ConnectionContext{
 		DatabaseName: database.DatabaseName,
@@ -909,7 +917,7 @@ func DoExport(
 			return nil, duration, err
 		}
 	case v1pb.ExportFormat_SQL:
-		resourceList, err := extractResourceList(ctx, stores, instance.Metadata.GetEngine(), database.DatabaseName, request.Statement, instance)
+		resourceList, err := getResources(ctx, stores, instance.Metadata.GetEngine(), database.DatabaseName, request.Statement, instance)
 		if err != nil {
 			return nil, 0, status.Errorf(codes.InvalidArgument, "failed to extract resource list: %v", err)
 		}
@@ -930,37 +938,51 @@ func DoExport(
 		return nil, duration, status.Errorf(codes.InvalidArgument, "unsupported export format: %s", request.Format.String())
 	}
 
-	encryptedBytes, err := doEncrypt(content, request)
+	if request.Password == "" {
+		return content, duration, nil
+	}
+	encryptedBytes, err := doEncrypt([]*exportData{
+		{
+			Database: database.DatabaseName,
+			Content:  content,
+		},
+	}, request)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to encrypt data")
 	}
 	return encryptedBytes, duration, nil
 }
 
-func doEncrypt(data []byte, request *v1pb.ExportRequest) ([]byte, error) {
-	if request.Password == "" {
-		return data, nil
-	}
+type exportData struct {
+	Database string
+	Content  []byte
+}
+
+func doEncrypt(exports []*exportData, request *v1pb.ExportRequest) ([]byte, error) {
 	var b bytes.Buffer
 	fzip := io.Writer(&b)
 
 	zipw := zip.NewWriter(fzip)
 	defer zipw.Close()
 
-	fh := &zip.FileHeader{
-		Name:   fmt.Sprintf("export.%s", strings.ToLower(request.Format.String())),
-		Method: zip.Deflate,
-	}
-	fh.ModifiedDate, fh.ModifiedTime = timeToMsDosTime(time.Now())
-	fh.SetPassword(request.Password)
-	writer, err := zipw.CreateHeader(fh)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create encrypt export file")
+	for i, export := range exports {
+		fh := &zip.FileHeader{
+			Name:   fmt.Sprintf("[%d] %s.%s", i, export.Database, strings.ToLower(request.Format.String())),
+			Method: zip.Deflate,
+		}
+		fh.ModifiedDate, fh.ModifiedTime = timeToMsDosTime(time.Now())
+		if request.Password != "" {
+			fh.SetPassword(request.Password)
+		}
+		writer, err := zipw.CreateHeader(fh)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to create encrypt export file")
+		}
+		if _, err := io.Copy(writer, bytes.NewReader(export.Content)); err != nil {
+			return nil, errors.Wrapf(err, "failed to write export file")
+		}
 	}
 
-	if _, err := io.Copy(writer, bytes.NewReader(data)); err != nil {
-		return nil, errors.Wrapf(err, "failed to write export file")
-	}
 	if err := zipw.Close(); err != nil {
 		return nil, errors.Wrap(err, "failed to close zip writer")
 	}
@@ -1301,7 +1323,7 @@ func (s *SQLService) accessCheck(
 
 	for _, span := range spans {
 		// New query ACL experience.
-		if base.EngineSupportQueryNewACL(instance.Metadata.GetEngine()) {
+		if common.EngineSupportQueryNewACL(instance.Metadata.GetEngine()) {
 			var permission iam.Permission
 			switch span.Type {
 			case parserbase.QueryTypeUnknown:
@@ -1607,7 +1629,7 @@ func (s *SQLService) SQLReviewCheck(
 	instance *store.InstanceMessage,
 	database *store.DatabaseMessage,
 ) (storepb.Advice_Status, []*v1pb.Advice, error) {
-	if !base.EngineSupportSQLReview(instance.Metadata.GetEngine()) || database == nil {
+	if !common.EngineSupportSQLReview(instance.Metadata.GetEngine()) || database == nil {
 		return storepb.Advice_SUCCESS, nil, nil
 	}
 
@@ -1880,27 +1902,47 @@ func (*SQLService) Pretty(_ context.Context, request *v1pb.PrettyRequest) (*v1pb
 	}, nil
 }
 
-func checkAndGetDataSourceQueriable(ctx context.Context, storeInstance *store.Store, database *store.DatabaseMessage, dataSourceID string) (*storepb.DataSource, error) {
-	instance, err := storeInstance.GetInstanceV2(ctx, &store.FindInstanceMessage{ResourceID: &database.InstanceID})
-	if err != nil {
-		return nil, errors.Errorf("failed to get instance: %v", err)
+// GetQueriableDataSource try to returns the RO data source, and will returns the admin data source if not exist the RO data source.
+func GetQueriableDataSource(instance *store.InstanceMessage) *storepb.DataSource {
+	var adminDataSource *storepb.DataSource
+	for _, ds := range instance.Metadata.GetDataSources() {
+		if ds.GetType() == storepb.DataSourceType_READ_ONLY {
+			return ds
+		}
+		if ds.GetType() == storepb.DataSourceType_ADMIN && adminDataSource == nil {
+			adminDataSource = ds
+		}
 	}
-	if instance == nil {
-		return nil, errors.Errorf("instance %q not found", database.InstanceID)
-	}
+	return adminDataSource
+}
+
+func checkAndGetDataSourceQueriable(
+	ctx context.Context,
+	storeInstance *store.Store,
+	database *store.DatabaseMessage,
+	dataSourceID string,
+) (*storepb.DataSource, error) {
 	if dataSourceID == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "data source id is required")
 	}
-	dataSource, serr := func() (*storepb.DataSource, *status.Status) {
+
+	instance, err := storeInstance.GetInstanceV2(ctx, &store.FindInstanceMessage{ResourceID: &database.InstanceID})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get instance %v with error: %v", database.InstanceID, err.Error())
+	}
+	if instance == nil {
+		return nil, status.Errorf(codes.NotFound, "instance %q not found", database.InstanceID)
+	}
+	dataSource := func() *storepb.DataSource {
 		for _, ds := range instance.Metadata.GetDataSources() {
 			if ds.GetId() == dataSourceID {
-				return ds, nil
+				return ds
 			}
 		}
-		return nil, status.Newf(codes.NotFound, "data source %q not found", dataSourceID)
+		return nil
 	}()
-	if serr != nil {
-		return nil, serr.Err()
+	if dataSource == nil {
+		return nil, status.Errorf(codes.NotFound, "data source %q not found", dataSourceID)
 	}
 
 	// Always allow non-admin data source.
@@ -1911,13 +1953,13 @@ func checkAndGetDataSourceQueriable(ctx context.Context, storeInstance *store.St
 	var envAdminDataSourceRestriction, projectAdminDataSourceRestriction v1pb.DataSourceQueryPolicy_Restriction
 	environment, err := storeInstance.GetEnvironmentByID(ctx, database.EffectiveEnvironmentID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get environment")
+		return nil, status.Errorf(codes.Internal, "failed to get environment %s with error %v", database.EffectiveEnvironmentID, err.Error())
 	}
 	if environment == nil {
-		return nil, errors.Errorf("environment %q not found", database.EffectiveEnvironmentID)
+		return nil, status.Errorf(codes.NotFound, "environment %q not found", database.EffectiveEnvironmentID)
 	}
-	dataSourceQueryPolicyType := base.PolicyTypeDataSourceQuery
-	environmentResourceType := base.PolicyResourceTypeEnvironment
+	dataSourceQueryPolicyType := storepb.Policy_DATA_SOURCE_QUERY
+	environmentResourceType := storepb.Policy_ENVIRONMENT
 	environmentResource := common.FormatEnvironment(environment.Id)
 	environmentPolicy, err := storeInstance.GetPolicyV2(ctx, &store.FindPolicyMessage{
 		ResourceType: &environmentResourceType,
@@ -1925,17 +1967,17 @@ func checkAndGetDataSourceQueriable(ctx context.Context, storeInstance *store.St
 		Type:         &dataSourceQueryPolicyType,
 	})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get policy")
+		return nil, status.Errorf(codes.Internal, "failed to get environment data source policy with error: %v", err.Error())
 	}
 	if environmentPolicy != nil {
 		envPayload, err := convertToV1PBDataSourceQueryPolicy(environmentPolicy.Payload)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to convert policy payload")
+			return nil, status.Errorf(codes.Internal, "failed to convert environment data source policy payload with error: %v", err.Error())
 		}
 		envAdminDataSourceRestriction = envPayload.DataSourceQueryPolicy.GetAdminDataSourceRestriction()
 	}
 
-	projectResourceType := base.PolicyResourceTypeProject
+	projectResourceType := storepb.Policy_PROJECT
 	projectResource := common.FormatProject(database.ProjectID)
 	projectPolicy, err := storeInstance.GetPolicyV2(ctx, &store.FindPolicyMessage{
 		ResourceType: &projectResourceType,
@@ -1943,12 +1985,12 @@ func checkAndGetDataSourceQueriable(ctx context.Context, storeInstance *store.St
 		Type:         &dataSourceQueryPolicyType,
 	})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get policy")
+		return nil, status.Errorf(codes.Internal, "failed to get project data source policy with error: %v", err.Error())
 	}
 	if projectPolicy != nil {
 		projectPayload, err := convertToV1PBDataSourceQueryPolicy(projectPolicy.Payload)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to convert policy payload")
+			return nil, status.Errorf(codes.Internal, "failed to convert project data source policy payload with error: %v", err.Error())
 		}
 		projectAdminDataSourceRestriction = projectPayload.DataSourceQueryPolicy.GetAdminDataSourceRestriction()
 	}
@@ -1958,10 +2000,8 @@ func checkAndGetDataSourceQueriable(ctx context.Context, storeInstance *store.St
 		return nil, status.Errorf(codes.PermissionDenied, "data source %q is not queryable", dataSourceID)
 	} else if envAdminDataSourceRestriction == v1pb.DataSourceQueryPolicy_FALLBACK || projectAdminDataSourceRestriction == v1pb.DataSourceQueryPolicy_FALLBACK {
 		// If there is any read-only data source, then return false.
-		for _, ds := range instance.Metadata.GetDataSources() {
-			if ds.Type == storepb.DataSourceType_READ_ONLY {
-				return nil, status.Errorf(codes.PermissionDenied, "data source %q is not queryable", dataSourceID)
-			}
+		if ds := GetQueriableDataSource(instance); ds != nil && ds.Type == storepb.DataSourceType_READ_ONLY {
+			return nil, status.Errorf(codes.PermissionDenied, "data source %q is not queryable", dataSourceID)
 		}
 	}
 
@@ -1976,9 +2016,9 @@ func checkDataSourceQueryPolicy(ctx context.Context, storeInstance *store.Store,
 	if environment == nil {
 		return status.Errorf(codes.NotFound, "environment %q not found", database.EffectiveEnvironmentID)
 	}
-	resourceType := base.PolicyResourceTypeEnvironment
+	resourceType := storepb.Policy_ENVIRONMENT
 	environmentResource := common.FormatEnvironment(environment.Id)
-	policyType := base.PolicyTypeDataSourceQuery
+	policyType := storepb.Policy_DATA_SOURCE_QUERY
 	dataSourceQueryPolicy, err := storeInstance.GetPolicyV2(ctx, &store.FindPolicyMessage{
 		ResourceType: &resourceType,
 		Resource:     &environmentResource,

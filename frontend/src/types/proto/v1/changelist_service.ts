@@ -125,8 +125,6 @@ export interface Changelist_Change {
    * 2) raw SQL if empty.
    */
   source: string;
-  /** The migration version for a change. */
-  version: string;
 }
 
 function createBaseCreateChangelistRequest(): CreateChangelistRequest {
@@ -185,14 +183,6 @@ export const CreateChangelistRequest: MessageFns<CreateChangelistRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): CreateChangelistRequest {
-    return {
-      parent: isSet(object.parent) ? globalThis.String(object.parent) : "",
-      changelist: isSet(object.changelist) ? Changelist.fromJSON(object.changelist) : undefined,
-      changelistId: isSet(object.changelistId) ? globalThis.String(object.changelistId) : "",
-    };
   },
 
   toJSON(message: CreateChangelistRequest): unknown {
@@ -257,10 +247,6 @@ export const GetChangelistRequest: MessageFns<GetChangelistRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): GetChangelistRequest {
-    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
   },
 
   toJSON(message: GetChangelistRequest): unknown {
@@ -339,14 +325,6 @@ export const ListChangelistsRequest: MessageFns<ListChangelistsRequest> = {
     return message;
   },
 
-  fromJSON(object: any): ListChangelistsRequest {
-    return {
-      parent: isSet(object.parent) ? globalThis.String(object.parent) : "",
-      pageSize: isSet(object.pageSize) ? globalThis.Number(object.pageSize) : 0,
-      pageToken: isSet(object.pageToken) ? globalThis.String(object.pageToken) : "",
-    };
-  },
-
   toJSON(message: ListChangelistsRequest): unknown {
     const obj: any = {};
     if (message.parent !== "") {
@@ -420,15 +398,6 @@ export const ListChangelistsResponse: MessageFns<ListChangelistsResponse> = {
     return message;
   },
 
-  fromJSON(object: any): ListChangelistsResponse {
-    return {
-      changelists: globalThis.Array.isArray(object?.changelists)
-        ? object.changelists.map((e: any) => Changelist.fromJSON(e))
-        : [],
-      nextPageToken: isSet(object.nextPageToken) ? globalThis.String(object.nextPageToken) : "",
-    };
-  },
-
   toJSON(message: ListChangelistsResponse): unknown {
     const obj: any = {};
     if (message.changelists?.length) {
@@ -498,13 +467,6 @@ export const UpdateChangelistRequest: MessageFns<UpdateChangelistRequest> = {
     return message;
   },
 
-  fromJSON(object: any): UpdateChangelistRequest {
-    return {
-      changelist: isSet(object.changelist) ? Changelist.fromJSON(object.changelist) : undefined,
-      updateMask: isSet(object.updateMask) ? FieldMask.unwrap(FieldMask.fromJSON(object.updateMask)) : undefined,
-    };
-  },
-
   toJSON(message: UpdateChangelistRequest): unknown {
     const obj: any = {};
     if (message.changelist !== undefined) {
@@ -563,10 +525,6 @@ export const DeleteChangelistRequest: MessageFns<DeleteChangelistRequest> = {
       reader.skip(tag & 7);
     }
     return message;
-  },
-
-  fromJSON(object: any): DeleteChangelistRequest {
-    return { name: isSet(object.name) ? globalThis.String(object.name) : "" };
   },
 
   toJSON(message: DeleteChangelistRequest): unknown {
@@ -667,18 +625,6 @@ export const Changelist: MessageFns<Changelist> = {
     return message;
   },
 
-  fromJSON(object: any): Changelist {
-    return {
-      name: isSet(object.name) ? globalThis.String(object.name) : "",
-      description: isSet(object.description) ? globalThis.String(object.description) : "",
-      creator: isSet(object.creator) ? globalThis.String(object.creator) : "",
-      updateTime: isSet(object.updateTime) ? fromJsonTimestamp(object.updateTime) : undefined,
-      changes: globalThis.Array.isArray(object?.changes)
-        ? object.changes.map((e: any) => Changelist_Change.fromJSON(e))
-        : [],
-    };
-  },
-
   toJSON(message: Changelist): unknown {
     const obj: any = {};
     if (message.name !== "") {
@@ -716,7 +662,7 @@ export const Changelist: MessageFns<Changelist> = {
 };
 
 function createBaseChangelist_Change(): Changelist_Change {
-  return { sheet: "", source: "", version: "" };
+  return { sheet: "", source: "" };
 }
 
 export const Changelist_Change: MessageFns<Changelist_Change> = {
@@ -726,9 +672,6 @@ export const Changelist_Change: MessageFns<Changelist_Change> = {
     }
     if (message.source !== "") {
       writer.uint32(18).string(message.source);
-    }
-    if (message.version !== "") {
-      writer.uint32(26).string(message.version);
     }
     return writer;
   },
@@ -756,14 +699,6 @@ export const Changelist_Change: MessageFns<Changelist_Change> = {
           message.source = reader.string();
           continue;
         }
-        case 3: {
-          if (tag !== 26) {
-            break;
-          }
-
-          message.version = reader.string();
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -773,14 +708,6 @@ export const Changelist_Change: MessageFns<Changelist_Change> = {
     return message;
   },
 
-  fromJSON(object: any): Changelist_Change {
-    return {
-      sheet: isSet(object.sheet) ? globalThis.String(object.sheet) : "",
-      source: isSet(object.source) ? globalThis.String(object.source) : "",
-      version: isSet(object.version) ? globalThis.String(object.version) : "",
-    };
-  },
-
   toJSON(message: Changelist_Change): unknown {
     const obj: any = {};
     if (message.sheet !== "") {
@@ -788,9 +715,6 @@ export const Changelist_Change: MessageFns<Changelist_Change> = {
     }
     if (message.source !== "") {
       obj.source = message.source;
-    }
-    if (message.version !== "") {
-      obj.version = message.version;
     }
     return obj;
   },
@@ -802,7 +726,6 @@ export const Changelist_Change: MessageFns<Changelist_Change> = {
     const message = createBaseChangelist_Change();
     message.sheet = object.sheet ?? "";
     message.source = object.source ?? "";
-    message.version = object.version ?? "";
     return message;
   },
 };
@@ -1264,40 +1187,15 @@ export type DeepPartial<T> = T extends Builtin ? T
   : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
 
-function toTimestamp(date: Date): Timestamp {
-  const seconds = numberToLong(Math.trunc(date.getTime() / 1_000));
-  const nanos = (date.getTime() % 1_000) * 1_000_000;
-  return { seconds, nanos };
-}
-
 function fromTimestamp(t: Timestamp): Date {
   let millis = (t.seconds.toNumber() || 0) * 1_000;
   millis += (t.nanos || 0) / 1_000_000;
   return new globalThis.Date(millis);
 }
 
-function fromJsonTimestamp(o: any): Timestamp {
-  if (o instanceof globalThis.Date) {
-    return toTimestamp(o);
-  } else if (typeof o === "string") {
-    return toTimestamp(new globalThis.Date(o));
-  } else {
-    return Timestamp.fromJSON(o);
-  }
-}
-
-function numberToLong(number: number) {
-  return Long.fromNumber(number);
-}
-
-function isSet(value: any): boolean {
-  return value !== null && value !== undefined;
-}
-
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;
   decode(input: BinaryReader | Uint8Array, length?: number): T;
-  fromJSON(object: any): T;
   toJSON(message: T): unknown;
   create(base?: DeepPartial<T>): T;
   fromPartial(object: DeepPartial<T>): T;

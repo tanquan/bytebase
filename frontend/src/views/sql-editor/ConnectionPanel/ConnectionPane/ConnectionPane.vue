@@ -2,7 +2,7 @@
   <div class="sql-editor-tree gap-y-1 h-full flex flex-col relative">
     <div class="w-full px-4 mt-4">
       <div
-        class="textinfolabel mb-2 w-full leading-4 flex flex-col lg:flex-row items-start lg:items-center gap-x-1"
+        class="textinfolabel mb-2 w-full leading-4 flex flex-col 2xl:flex-row items-start 2xl:items-center gap-x-1"
       >
         <div class="flex items-center gap-x-1">
           <FeatureBadge feature="bb.feature.batch-query" />
@@ -49,6 +49,26 @@
             @uncheck="handleUncheckDatabaseGroup"
           />
         </template>
+        <NDivider v-if="tabStore.isInBatchMode" class="!my-2" />
+        <div v-if="tabStore.isInBatchMode" class="w-full">
+          <div class="textinfolabel flex items-center gap-x-1">
+            {{ $t("sql-editor.batch-query.select-data-source.self") }}
+            <NTooltip>
+              <template #trigger>
+                <InfoIcon class="w-4" />
+              </template>
+              {{ $t("sql-editor.batch-query.select-data-source.tooltip") }}
+            </NTooltip>
+          </div>
+          <NRadioGroup v-model:value="state.batchQueryDataSourceType">
+            <NRadio :value="DataSourceType.ADMIN">
+              {{ getDataSourceTypeI18n(DataSourceType.ADMIN) }}
+            </NRadio>
+            <NRadio :value="DataSourceType.READ_ONLY">
+              {{ getDataSourceTypeI18n(DataSourceType.READ_ONLY) }}
+            </NRadio>
+          </NRadioGroup>
+        </div>
       </div>
     </div>
     <NDivider v-if="tabStore.currentTab" class="!my-3" />
@@ -89,8 +109,8 @@
           :data="treeStore.tree"
           :show-irrelevant-nodes="false"
           :selected-keys="selectedKeys"
-          :default-expand-all="true"
           :expand-on-click="true"
+          v-model:expanded-keys="expandedState.expandedKeys"
           :node-props="nodeProps"
           :theme-overrides="{ nodeHeight: '21px' }"
           :render-label="renderLabel"
@@ -146,7 +166,8 @@
 
 <script lang="ts" setup>
 import { useElementSize } from "@vueuse/core";
-import { head, isEqual } from "lodash-es";
+import { isEqual } from "lodash-es";
+import { InfoIcon } from "lucide-vue-next";
 import {
   NTag,
   NButton,
@@ -154,6 +175,9 @@ import {
   NDropdown,
   NCheckbox,
   NDivider,
+  NRadioGroup,
+  NRadio,
+  NTooltip,
   type TreeOption,
 } from "naive-ui";
 import { storeToRefs } from "pinia";
@@ -170,6 +194,7 @@ import {
   useProjectV1Store,
   useDatabaseV1Store,
   useSQLEditorTabStore,
+  useCurrentUserV1,
   resolveOpeningDatabaseListFromSQLEditorTabList,
   useSQLEditorTreeStore,
   useSQLEditorStore,
@@ -184,9 +209,15 @@ import type {
   ComposedDatabase,
   SQLEditorTreeNode,
   CoreSQLEditorTab,
+  QueryDataSourceType,
 } from "@/types";
-import { DEFAULT_SQL_EDITOR_TAB_MODE, isValidDatabaseName } from "@/types";
+import {
+  DEFAULT_SQL_EDITOR_TAB_MODE,
+  isValidDatabaseName,
+  getDataSourceTypeI18n,
+} from "@/types";
 import { engineFromJSON } from "@/types/proto/v1/common";
+import { DataSourceType } from "@/types/proto/v1/instance_service";
 import {
   findAncestor,
   isDescendantOf,
@@ -195,6 +226,7 @@ import {
   extractProjectResourceName,
   emptySQLEditorConnection,
   tryConnectToCoreSQLEditorTab,
+  useDynamicLocalStorage,
 } from "@/utils";
 import type { SearchParams } from "@/utils";
 import { useSQLEditorContext } from "../../context";
@@ -212,6 +244,7 @@ interface LocalState {
   selectedDatabases: Set<string>;
   params: SearchParams;
   showFeatureModal: boolean;
+  batchQueryDataSourceType?: QueryDataSourceType;
 }
 
 const treeStore = useSQLEditorTreeStore();
@@ -219,6 +252,29 @@ const tabStore = useSQLEditorTabStore();
 const editorStore = useSQLEditorStore();
 const databaseStore = useDatabaseV1Store();
 const projectStore = useProjectV1Store();
+const currentUser = useCurrentUserV1();
+
+const expandedState = useDynamicLocalStorage<{
+  initialized: boolean;
+  expandedKeys: string[];
+}>(
+  computed(
+    () =>
+      `bb.sql-editor.connection-pane.expanded-keys.${currentUser.value.name}`
+  ),
+  {
+    initialized: false,
+    expandedKeys: [],
+  }
+);
+
+watch(
+  () => expandedState.value.expandedKeys,
+  () => {
+    expandedState.value.initialized = true;
+  },
+  { deep: true }
+);
 
 const hasBatchQueryFeature = featureToRef("bb.feature.batch-query");
 const hasDatabaseGroupFeature = featureToRef("bb.feature.database-grouping");
@@ -230,7 +286,18 @@ const state = reactive<LocalState>({
     scopes: [],
   },
   showFeatureModal: false,
+  batchQueryDataSourceType: DataSourceType.READ_ONLY,
 });
+
+watch(
+  () => state.batchQueryDataSourceType,
+  (dataSourceType) => {
+    tabStore.updateBatchQueryContext({
+      dataSourceType,
+    });
+  },
+  { immediate: true }
+);
 
 watch(
   () => tabStore.currentTab?.id,
@@ -269,12 +336,8 @@ watch(
       };
       tryConnectToCoreSQLEditorTab(coreTab);
     }
-    tabStore.updateCurrentTab({
-      batchQueryContext: {
-        databases: selectedDatabases,
-        databaseGroups:
-          tabStore.currentTab?.batchQueryContext?.databaseGroups ?? [],
-      },
+    tabStore.updateBatchQueryContext({
+      databases: selectedDatabases,
     });
   }
 );
@@ -284,13 +347,10 @@ const handleUncheckDatabase = (database: string) => {
 };
 
 const handleUncheckDatabaseGroup = (databaseGroupName: string) => {
-  tabStore.updateCurrentTab({
-    batchQueryContext: {
-      databases: tabStore.currentTab?.batchQueryContext?.databases ?? [],
-      databaseGroups: (
-        tabStore.currentTab?.batchQueryContext?.databaseGroups ?? []
-      ).filter((name) => name !== databaseGroupName),
-    },
+  tabStore.updateBatchQueryContext({
+    databaseGroups: (
+      tabStore.currentTab?.batchQueryContext?.databaseGroups ?? []
+    ).filter((name) => name !== databaseGroupName),
   });
 };
 
@@ -342,13 +402,10 @@ const getSelectedKeys = async () => {
     const database = await databaseStore.getOrFetchDatabaseByName(
       connection.database
     );
-    const node = head(treeStore.nodesByTarget("database", database));
-    if (!node) return [];
-    return [node.key];
+    return treeStore.nodeKeysByTarget("database", database);
   } else if (connection.instance) {
     const { instance } = useInstanceResourceByName(connection.instance);
-    const nodes = treeStore.nodesByTarget("instance", instance.value);
-    return nodes.map((node) => node.key);
+    return treeStore.nodeKeysByTarget("instance", instance.value);
   }
   return [];
 };
@@ -371,11 +428,9 @@ const connect = (node: SQLEditorTreeNode) => {
     },
     context: editorContext,
   });
-  tabStore.updateCurrentTab({
-    batchQueryContext: {
-      databases: [],
-      databaseGroups: [],
-    },
+  tabStore.updateBatchQueryContext({
+    databases: [],
+    databaseGroups: [],
   });
   showConnectionPanel.value = false;
 };
@@ -394,7 +449,6 @@ const renderLabel = ({ option }: { option: TreeOption }) => {
     factors: treeStore.filteredFactorList,
     keyword: state.params.query,
     connected: connectedDatabases.value.has(databaseName),
-    connectedDatabases: connectedDatabases.value,
     "onUpdate:checked": (checked: boolean) => {
       if (node.meta.type !== "database") {
         return;
@@ -491,6 +545,10 @@ watch(
 
 useEmitteryEventListener(editorEvents, "tree-ready", async () => {
   selectedKeys.value = await getSelectedKeys();
+  if (!expandedState.value.initialized) {
+    // default expand all nodes.
+    expandedState.value.expandedKeys = [...treeStore.allNodeKeys];
+  }
 });
 
 const selectedLabels = computed(() => {

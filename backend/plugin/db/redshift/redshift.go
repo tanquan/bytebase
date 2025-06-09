@@ -31,7 +31,9 @@ var (
 	excludedDatabaseList = map[string]bool{
 		// Skip internal databases from cloud service providers
 		// aws
-		"padb_harvest": true,
+		"padb_harvest":   true,
+		"awsdatacatalog": true,
+		"sys:internal":   true,
 		// system templates.
 		"template0": true,
 		"template1": true,
@@ -81,7 +83,13 @@ func (d *Driver) Open(_ context.Context, _ storepb.Engine, config db.ConnectionC
 	}
 	pgxConnConfig.User = config.DataSource.Username
 	pgxConnConfig.Password = config.Password
-	pgxConnConfig.Database = config.ConnectionContext.DatabaseName
+	if config.ConnectionContext.DatabaseName != "" {
+		pgxConnConfig.Database = config.ConnectionContext.DatabaseName
+	} else if config.DataSource.GetDatabase() != "" {
+		pgxConnConfig.Database = config.DataSource.GetDatabase()
+	} else {
+		pgxConnConfig.Database = "dev"
+	}
 
 	if config.DataSource.GetSslCert() != "" {
 		tlscfg, err := util.GetTLSConfig(config.DataSource)

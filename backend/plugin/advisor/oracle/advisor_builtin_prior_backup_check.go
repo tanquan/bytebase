@@ -3,7 +3,6 @@ package oracle
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/pkg/errors"
@@ -28,7 +27,7 @@ type StatementPriorBackupCheckAdvisor struct {
 }
 
 func (*StatementPriorBackupCheckAdvisor) Check(ctx context.Context, checkCtx advisor.Context) ([]*storepb.Advice, error) {
-	if checkCtx.PreUpdateBackupDetail == nil || checkCtx.ChangeType != storepb.PlanCheckRunConfig_DML {
+	if !checkCtx.EnablePriorBackup || checkCtx.ChangeType != storepb.PlanCheckRunConfig_DML {
 		return nil, nil
 	}
 
@@ -54,12 +53,12 @@ func (*StatementPriorBackupCheckAdvisor) Check(ctx context.Context, checkCtx adv
 		})
 	}
 
-	databaseName := extractDatabaseName(checkCtx.PreUpdateBackupDetail.Database)
+	databaseName := common.BackupDatabaseNameOfEngine(storepb.Engine_ORACLE)
 	if !advisor.DatabaseExists(ctx, checkCtx, databaseName) {
 		adviceList = append(adviceList, &storepb.Advice{
 			Status:        level,
 			Title:         title,
-			Content:       fmt.Sprintf("Need database %q to do prior backup but it does not exist", checkCtx.PreUpdateBackupDetail.Database),
+			Content:       fmt.Sprintf("Need database %q to do prior backup but it does not exist", databaseName),
 			Code:          advisor.DatabaseNotExists.Int32(),
 			StartPosition: common.FirstLinePosition,
 		})
@@ -260,9 +259,4 @@ func (l *statementDisallowMixDMLChecker) EnterUnit_statement(ctx *plsql.Unit_sta
 	} else {
 		l.hasDDL = true
 	}
-}
-
-func extractDatabaseName(databaseUID string) string {
-	segments := strings.Split(databaseUID, "/")
-	return segments[len(segments)-1]
 }

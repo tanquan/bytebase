@@ -383,7 +383,7 @@ func (s *InstanceService) checkInstanceDataSources(instance *store.InstanceMessa
 	return nil
 }
 
-var instanceExceededError = "activation instance count has reached the limit (%v)"
+const instanceExceededError = "activation instance count has reached the limit (%v)"
 
 func (s *InstanceService) checkDataSource(instance *store.InstanceMessage, dataSource *storepb.DataSource) error {
 	if dataSource.GetId() == "" {
@@ -517,7 +517,7 @@ func (s *InstanceService) DeleteInstance(ctx context.Context, request *v1pb.Dele
 	}
 	if request.Force {
 		if len(databases) > 0 {
-			defaultProjectID := base.DefaultProjectID
+			defaultProjectID := common.DefaultProjectID
 			if _, err := s.store.BatchUpdateDatabases(ctx, databases, &store.BatchUpdateDatabases{ProjectID: &defaultProjectID}); err != nil {
 				return nil, err
 			}
@@ -525,7 +525,7 @@ func (s *InstanceService) DeleteInstance(ctx context.Context, request *v1pb.Dele
 	} else {
 		var databaseNames []string
 		for _, database := range databases {
-			if database.ProjectID != base.DefaultProjectID {
+			if database.ProjectID != common.DefaultProjectID {
 				databaseNames = append(databaseNames, database.DatabaseName)
 			}
 		}
@@ -599,7 +599,7 @@ func (s *InstanceService) SyncInstance(ctx context.Context, request *v1pb.SyncIn
 	return response, nil
 }
 
-// SyncInstance syncs the instance.
+// BatchSyncInstances syncs multiple instances.
 func (s *InstanceService) BatchSyncInstances(ctx context.Context, request *v1pb.BatchSyncInstancesRequest) (*v1pb.BatchSyncInstancesResponse, error) {
 	for _, r := range request.Requests {
 		instance, err := getInstanceMessage(ctx, s.store, r.Name)
@@ -623,6 +623,19 @@ func (s *InstanceService) BatchSyncInstances(ctx context.Context, request *v1pb.
 	}
 
 	return &v1pb.BatchSyncInstancesResponse{}, nil
+}
+
+// BatchUpdateInstances update multiple instances.
+func (s *InstanceService) BatchUpdateInstances(ctx context.Context, request *v1pb.BatchUpdateInstancesRequest) (*v1pb.BatchUpdateInstancesResponse, error) {
+	response := &v1pb.BatchUpdateInstancesResponse{}
+	for _, req := range request.GetRequests() {
+		updated, err := s.UpdateInstance(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		response.Instances = append(response.Instances, updated)
+	}
+	return response, nil
 }
 
 // AddDataSource adds a data source to an instance.
@@ -737,7 +750,6 @@ func (s *InstanceService) UpdateDataSource(ctx context.Context, request *v1pb.Up
 		}
 	}
 
-	hasSSH := false
 	for _, path := range request.UpdateMask.Paths {
 		switch path {
 		case "username":
@@ -766,19 +778,14 @@ func (s *InstanceService) UpdateDataSource(ctx context.Context, request *v1pb.Up
 			dataSource.ServiceName = request.DataSource.ServiceName
 		case "ssh_host":
 			dataSource.SshHost = request.DataSource.SshHost
-			hasSSH = true
 		case "ssh_port":
 			dataSource.SshPort = request.DataSource.SshPort
-			hasSSH = true
 		case "ssh_user":
 			dataSource.SshUser = request.DataSource.SshUser
-			hasSSH = true
 		case "ssh_password":
 			dataSource.SshPassword = request.DataSource.SshPassword
-			hasSSH = true
 		case "ssh_private_key":
 			dataSource.SshPrivateKey = request.DataSource.SshPrivateKey
-			hasSSH = true
 		case "authentication_private_key":
 			dataSource.AuthenticationPrivateKey = request.DataSource.AuthenticationPrivateKey
 		case "external_secret":
@@ -833,11 +840,6 @@ func (s *InstanceService) UpdateDataSource(ctx context.Context, request *v1pb.Up
 
 	if err := s.checkDataSource(instance, dataSource); err != nil {
 		return nil, err
-	}
-	if hasSSH {
-		if err := s.licenseService.IsFeatureEnabledForInstance(base.FeatureInstanceSSHConnection, instance); err != nil {
-			return nil, status.Error(codes.PermissionDenied, err.Error())
-		}
 	}
 
 	// Test connection.
@@ -1143,6 +1145,9 @@ func convertDataSources(dataSources []*storepb.DataSource) ([]*v1pb.DataSource, 
 			AuthenticationDatabase:    ds.GetAuthenticationDatabase(),
 			Sid:                       ds.GetSid(),
 			ServiceName:               ds.GetServiceName(),
+			SshHost:                   ds.GetSshHost(),
+			SshPort:                   ds.GetSshPort(),
+			SshUser:                   ds.GetSshUser(),
 			ExternalSecret:            externalSecret,
 			AuthenticationType:        authenticationType,
 			SaslConfig:                convertDataSourceSaslConfig(ds.GetSaslConfig()),

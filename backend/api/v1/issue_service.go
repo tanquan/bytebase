@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/common/log"
 	"github.com/bytebase/bytebase/backend/component/config"
@@ -126,18 +125,11 @@ func (s *IssueService) getIssueFind(ctx context.Context, filter string, query st
 					}
 					issueFind.InstanceResourceID = &instanceResourceID
 				case "database":
-					instanceID, databaseName, err := common.GetInstanceDatabaseID(value.(string))
-					if err != nil {
-						return "", status.Error(codes.InvalidArgument, err.Error())
-					}
-					database, err := s.store.GetDatabaseV2(ctx, &store.FindDatabaseMessage{
-						InstanceID:   &instanceID,
-						DatabaseName: &databaseName,
-					})
+					database, err := getDatabaseMessage(ctx, s.store, value.(string))
 					if err != nil {
 						return "", status.Error(codes.Internal, err.Error())
 					}
-					if database == nil {
+					if database == nil || database.Deleted {
 						return "", status.Errorf(codes.InvalidArgument, `database "%q" not found`, value)
 					}
 					issueFind.InstanceID = &database.InstanceID
@@ -161,7 +153,7 @@ func (s *IssueService) getIssueFind(ctx context.Context, filter string, query st
 					if err != nil {
 						return "", status.Errorf(codes.InvalidArgument, "failed to convert to issue type, err: %v", err)
 					}
-					issueFind.Types = &[]base.IssueType{issueType}
+					issueFind.Types = &[]storepb.Issue_Type{issueType}
 				case "task_type":
 					taskType, ok := value.(string)
 					if !ok {
@@ -169,17 +161,17 @@ func (s *IssueService) getIssueFind(ctx context.Context, filter string, query st
 					}
 					switch taskType {
 					case "DDL":
-						issueFind.TaskTypes = &[]base.TaskType{
-							base.TaskDatabaseSchemaUpdate,
-							base.TaskDatabaseSchemaUpdateGhost,
+						issueFind.TaskTypes = &[]storepb.Task_Type{
+							storepb.Task_DATABASE_SCHEMA_UPDATE,
+							storepb.Task_DATABASE_SCHEMA_UPDATE_GHOST,
 						}
 					case "DML":
-						issueFind.TaskTypes = &[]base.TaskType{
-							base.TaskDatabaseDataUpdate,
+						issueFind.TaskTypes = &[]storepb.Task_Type{
+							storepb.Task_DATABASE_DATA_UPDATE,
 						}
 					case "DATA_EXPORT":
-						issueFind.TaskTypes = &[]base.TaskType{
-							base.TaskDatabaseDataExport,
+						issueFind.TaskTypes = &[]storepb.Task_Type{
+							storepb.Task_DATABASE_EXPORT,
 						}
 					default:
 						return "", status.Errorf(codes.InvalidArgument, `unknown value %q`, value)
@@ -227,7 +219,7 @@ func (s *IssueService) getIssueFind(ctx context.Context, filter string, query st
 						issueFind.StatusList = append(issueFind.StatusList, newStatus)
 					}
 				case "type":
-					types := []base.IssueType{}
+					types := []storepb.Issue_Type{}
 					for _, raw := range rawList {
 						issueType, err := convertToAPIIssueType(v1pb.Issue_Type(v1pb.Issue_Type_value[raw.(string)]))
 						if err != nil {
@@ -399,7 +391,7 @@ func (s *IssueService) CreateIssue(ctx context.Context, request *v1pb.CreateIssu
 		return s.createIssueGrantRequest(ctx, request)
 	case v1pb.Issue_DATABASE_CHANGE:
 		return s.createIssueDatabaseChange(ctx, request)
-	case v1pb.Issue_DATABASE_DATA_EXPORT:
+	case v1pb.Issue_DATABASE_EXPORT:
 		return s.createIssueDatabaseDataExport(ctx, request)
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unknown issue type %q", request.Issue.Type)
@@ -463,12 +455,12 @@ func (s *IssueService) createIssueDatabaseChange(ctx context.Context, request *v
 		PlanUID:     planUID,
 		PipelineUID: rolloutUID,
 		Title:       request.Issue.Title,
-		Status:      base.IssueOpen,
-		Type:        base.IssueDatabaseGeneral,
+		Status:      storepb.Issue_OPEN,
+		Type:        storepb.Issue_DATABASE_CHANGE,
 		Description: request.Issue.Description,
 	}
 
-	issueCreateMessage.Payload = &storepb.IssuePayload{
+	issueCreateMessage.Payload = &storepb.Issue{
 		Approval: &storepb.IssuePayloadApproval{
 			ApprovalFindingDone: false,
 			ApprovalTemplates:   nil,
@@ -485,7 +477,7 @@ func (s *IssueService) createIssueDatabaseChange(ctx context.Context, request *v
 
 	s.webhookManager.CreateEvent(ctx, &webhook.Event{
 		Actor:   user,
-		Type:    webhook.EventTypeIssueCreate,
+		Type:    common.EventTypeIssueCreate,
 		Comment: "",
 		Issue:   webhook.NewIssue(issue),
 		Project: webhook.NewProject(issue.Project),
@@ -540,8 +532,8 @@ func (s *IssueService) createIssueGrantRequest(ctx context.Context, request *v1p
 		PlanUID:     nil,
 		PipelineUID: nil,
 		Title:       request.Issue.Title,
-		Status:      base.IssueOpen,
-		Type:        base.IssueGrantRequest,
+		Status:      storepb.Issue_OPEN,
+		Type:        storepb.Issue_GRANT_REQUEST,
 		Description: request.Issue.Description,
 	}
 
@@ -550,7 +542,7 @@ func (s *IssueService) createIssueGrantRequest(ctx context.Context, request *v1p
 		return nil, status.Errorf(codes.Internal, "failed to convert GrantRequest, error: %v", err)
 	}
 
-	issueCreateMessage.Payload = &storepb.IssuePayload{
+	issueCreateMessage.Payload = &storepb.Issue{
 		GrantRequest: convertedGrantRequest,
 		Approval: &storepb.IssuePayloadApproval{
 			ApprovalFindingDone: false,
@@ -568,7 +560,7 @@ func (s *IssueService) createIssueGrantRequest(ctx context.Context, request *v1p
 
 	s.webhookManager.CreateEvent(ctx, &webhook.Event{
 		Actor:   user,
-		Type:    webhook.EventTypeIssueCreate,
+		Type:    common.EventTypeIssueCreate,
 		Comment: "",
 		Issue:   webhook.NewIssue(issue),
 		Project: webhook.NewProject(issue.Project),
@@ -647,12 +639,12 @@ func (s *IssueService) createIssueDatabaseDataExport(ctx context.Context, reques
 		PlanUID:     planUID,
 		PipelineUID: rolloutUID,
 		Title:       request.Issue.Title,
-		Status:      base.IssueOpen,
-		Type:        base.IssueDatabaseDataExport,
+		Status:      storepb.Issue_OPEN,
+		Type:        storepb.Issue_DATABASE_EXPORT,
 		Description: request.Issue.Description,
 	}
 
-	issueCreateMessage.Payload = &storepb.IssuePayload{
+	issueCreateMessage.Payload = &storepb.Issue{
 		Approval: &storepb.IssuePayloadApproval{
 			ApprovalFindingDone: false,
 			ApprovalTemplates:   nil,
@@ -669,7 +661,7 @@ func (s *IssueService) createIssueDatabaseDataExport(ctx context.Context, reques
 
 	s.webhookManager.CreateEvent(ctx, &webhook.Event{
 		Actor:   user,
-		Type:    webhook.EventTypeIssueCreate,
+		Type:    common.EventTypeIssueCreate,
 		Comment: "",
 		Issue:   webhook.NewIssue(issue),
 		Project: webhook.NewProject(issue.Project),
@@ -757,7 +749,7 @@ func (s *IssueService) ApproveIssue(ctx context.Context, request *v1pb.ApproveIs
 	payload.Approval.Approvers = append(payload.Approval.Approvers, newApprovers...)
 
 	issue, err = s.store.UpdateIssueV2(ctx, issue.UID, &store.UpdateIssueMessage{
-		PayloadUpsert: &storepb.IssuePayload{
+		PayloadUpsert: &storepb.Issue{
 			Approval: payload.Approval,
 		},
 	})
@@ -766,7 +758,7 @@ func (s *IssueService) ApproveIssue(ctx context.Context, request *v1pb.ApproveIs
 	}
 
 	// Grant the privilege if the issue is approved.
-	if approved && issue.Type == base.IssueGrantRequest {
+	if approved && issue.Type == storepb.Issue_GRANT_REQUEST {
 		if err := utils.UpdateProjectPolicyFromGrantIssue(ctx, s.store, issue, payload.GrantRequest); err != nil {
 			return nil, err
 		}
@@ -804,7 +796,7 @@ func (s *IssueService) ApproveIssue(ctx context.Context, request *v1pb.ApproveIs
 
 		s.webhookManager.CreateEvent(ctx, &webhook.Event{
 			Actor:   s.store.GetSystemBotUser(ctx),
-			Type:    webhook.EventTypeIssueApprovalCreate,
+			Type:    common.EventTypeIssueApprovalCreate,
 			Comment: "",
 			Issue:   webhook.NewIssue(issue),
 			Project: webhook.NewProject(issue.Project),
@@ -826,7 +818,7 @@ func (s *IssueService) ApproveIssue(ctx context.Context, request *v1pb.ApproveIs
 		// notify issue approved
 		s.webhookManager.CreateEvent(ctx, &webhook.Event{
 			Actor:   s.store.GetSystemBotUser(ctx),
-			Type:    webhook.EventTypeIssueApprovalPass,
+			Type:    common.EventTypeIssueApprovalPass,
 			Comment: "",
 			Issue:   webhook.NewIssue(issue),
 			Project: webhook.NewProject(issue.Project),
@@ -837,27 +829,29 @@ func (s *IssueService) ApproveIssue(ctx context.Context, request *v1pb.ApproveIs
 			if issue.PipelineUID == nil {
 				return nil
 			}
-			stages, err := s.store.ListStageV2(ctx, *issue.PipelineUID)
+			tasks, err := s.store.ListTasks(ctx, &store.TaskFind{PipelineID: issue.PipelineUID})
 			if err != nil {
-				return errors.Wrapf(err, "failed to list stages")
+				return errors.Wrapf(err, "failed to list tasks")
 			}
-			if len(stages) == 0 {
+			if len(tasks) == 0 {
 				return nil
 			}
 
-			policy, err := GetValidRolloutPolicyForStage(ctx, s.store, stages[0])
+			// Get the first environment from tasks
+			firstEnvironment := tasks[0].Environment
+			policy, err := GetValidRolloutPolicyForEnvironment(ctx, s.store, firstEnvironment)
 			if err != nil {
 				return err
 			}
 			s.webhookManager.CreateEvent(ctx, &webhook.Event{
 				Actor:   user,
-				Type:    webhook.EventTypeIssueRolloutReady,
+				Type:    common.EventTypeIssueRolloutReady,
 				Comment: "",
 				Issue:   webhook.NewIssue(issue),
 				Project: webhook.NewProject(issue.Project),
 				IssueRolloutReady: &webhook.EventIssueRolloutReady{
 					RolloutPolicy: policy,
-					StageName:     stages[0].Environment,
+					StageName:     firstEnvironment,
 				},
 			})
 			return nil
@@ -867,7 +861,7 @@ func (s *IssueService) ApproveIssue(ctx context.Context, request *v1pb.ApproveIs
 	}()
 
 	// If the issue is a grant request and approved, we will always auto close it.
-	if issue.Type == base.IssueGrantRequest {
+	if issue.Type == storepb.Issue_GRANT_REQUEST {
 		if err := func() error {
 			payload := issue.Payload
 			approved, err := utils.CheckApprovalApproved(payload.Approval)
@@ -875,7 +869,7 @@ func (s *IssueService) ApproveIssue(ctx context.Context, request *v1pb.ApproveIs
 				return errors.Wrap(err, "failed to check if the approval is approved")
 			}
 			if approved {
-				if err := webhook.ChangeIssueStatus(ctx, s.store, s.webhookManager, issue, base.IssueDone, s.store.GetSystemBotUser(ctx), ""); err != nil {
+				if err := webhook.ChangeIssueStatus(ctx, s.store, s.webhookManager, issue, storepb.Issue_DONE, s.store.GetSystemBotUser(ctx), ""); err != nil {
 					return errors.Wrap(err, "failed to update issue status")
 				}
 			}
@@ -954,7 +948,7 @@ func (s *IssueService) RejectIssue(ctx context.Context, request *v1pb.RejectIssu
 	})
 
 	issue, err = s.store.UpdateIssueV2(ctx, issue.UID, &store.UpdateIssueMessage{
-		PayloadUpsert: &storepb.IssuePayload{
+		PayloadUpsert: &storepb.Issue{
 			Approval: payload.Approval,
 		},
 	})
@@ -1042,7 +1036,7 @@ func (s *IssueService) RequestIssue(ctx context.Context, request *v1pb.RequestIs
 	payload.Approval.Approvers = append(payload.Approval.Approvers, newApprovers...)
 
 	issue, err = s.store.UpdateIssueV2(ctx, issue.UID, &store.UpdateIssueMessage{
-		PayloadUpsert: &storepb.IssuePayload{
+		PayloadUpsert: &storepb.Issue{
 			Approval: payload.Approval,
 		},
 	})
@@ -1061,7 +1055,7 @@ func (s *IssueService) RequestIssue(ctx context.Context, request *v1pb.RequestIs
 
 		s.webhookManager.CreateEvent(ctx, &webhook.Event{
 			Actor:   s.store.GetSystemBotUser(ctx),
-			Type:    webhook.EventTypeIssueApprovalCreate,
+			Type:    common.EventTypeIssueApprovalCreate,
 			Comment: "",
 			Issue:   webhook.NewIssue(issue),
 			Project: webhook.NewProject(issue.Project),
@@ -1137,7 +1131,7 @@ func (s *IssueService) UpdateIssue(ctx context.Context, request *v1pb.UpdateIssu
 			}
 
 			if patch.PayloadUpsert == nil {
-				patch.PayloadUpsert = &storepb.IssuePayload{}
+				patch.PayloadUpsert = &storepb.Issue{}
 			}
 			patch.PayloadUpsert.Approval = &storepb.IssuePayloadApproval{
 				ApprovalFindingDone: false,
@@ -1182,7 +1176,7 @@ func (s *IssueService) UpdateIssue(ctx context.Context, request *v1pb.UpdateIssu
 
 			webhookEvents = append(webhookEvents, &webhook.Event{
 				Actor:   user,
-				Type:    webhook.EventTypeIssueUpdate,
+				Type:    common.EventTypeIssueUpdate,
 				Comment: "",
 				Issue:   webhook.NewIssue(issue),
 				Project: webhook.NewProject(issue.Project),
@@ -1208,7 +1202,7 @@ func (s *IssueService) UpdateIssue(ctx context.Context, request *v1pb.UpdateIssu
 
 			webhookEvents = append(webhookEvents, &webhook.Event{
 				Actor:   user,
-				Type:    webhook.EventTypeIssueUpdate,
+				Type:    common.EventTypeIssueUpdate,
 				Comment: "",
 				Issue:   webhook.NewIssue(issue),
 				Project: webhook.NewProject(issue.Project),
@@ -1240,7 +1234,7 @@ func (s *IssueService) UpdateIssue(ctx context.Context, request *v1pb.UpdateIssu
 				patch.RemoveLabels = true
 			} else {
 				if patch.PayloadUpsert == nil {
-					patch.PayloadUpsert = &storepb.IssuePayload{}
+					patch.PayloadUpsert = &storepb.Issue{}
 				}
 				patch.PayloadUpsert.Labels = request.Issue.Labels
 			}
@@ -1306,7 +1300,7 @@ func (s *IssueService) BatchUpdateIssuesStatus(ctx context.Context, request *v1p
 
 		// Check if there is any running/pending task runs.
 		if issue.PipelineUID != nil {
-			taskRunStatusList := []base.TaskRunStatus{base.TaskRunRunning, base.TaskRunPending}
+			taskRunStatusList := []storepb.TaskRun_Status{storepb.TaskRun_RUNNING, storepb.TaskRun_PENDING}
 			taskRuns, err := s.store.ListTaskRunsV2(ctx, &store.FindTaskRunMessage{PipelineUID: issue.PipelineUID, Status: &taskRunStatusList})
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "failed to list task runs, err: %v", err)
@@ -1342,7 +1336,7 @@ func (s *IssueService) BatchUpdateIssuesStatus(ctx context.Context, request *v1p
 			func() {
 				s.webhookManager.CreateEvent(ctx, &webhook.Event{
 					Actor:   user,
-					Type:    webhook.EventTypeIssueStatusUpdate,
+					Type:    common.EventTypeIssueStatusUpdate,
 					Comment: request.Reason,
 					Issue:   webhook.NewIssue(updatedIssue),
 					Project: webhook.NewProject(updatedIssue.Project),
@@ -1438,7 +1432,7 @@ func (s *IssueService) CreateIssueComment(ctx context.Context, request *v1pb.Cre
 
 	s.webhookManager.CreateEvent(ctx, &webhook.Event{
 		Actor:   user,
-		Type:    webhook.EventTypeIssueCommentCreate,
+		Type:    common.EventTypeIssueCommentCreate,
 		Comment: request.IssueComment.Comment,
 		Issue:   webhook.NewIssue(issue),
 		Project: webhook.NewProject(issue.Project),

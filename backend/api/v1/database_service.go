@@ -69,29 +69,15 @@ func (s *DatabaseService) GetDatabase(ctx context.Context, request *v1pb.GetData
 }
 
 func (s *DatabaseService) getDatabaseMessage(ctx context.Context, name string) (*store.DatabaseMessage, error) {
-	instanceID, databaseName, err := common.GetInstanceDatabaseID(name)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	instance, err := s.store.GetInstanceV2(ctx, &store.FindInstanceMessage{ResourceID: &instanceID})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get instance %s with error: %v", instanceID, err.Error())
-	}
-	if instance == nil {
-		return nil, status.Errorf(codes.NotFound, "instance %q not found", instanceID)
-	}
-
-	find := &store.FindDatabaseMessage{
-		InstanceID:      &instanceID,
-		DatabaseName:    &databaseName,
-		IsCaseSensitive: store.IsObjectCaseSensitive(instance),
-	}
-	databaseMessage, err := s.store.GetDatabaseV2(ctx, find)
+	databaseMessage, err := getDatabaseMessage(ctx, s.store, name)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if databaseMessage == nil {
-		return nil, status.Errorf(codes.NotFound, "database %q not found", databaseName)
+		return nil, status.Errorf(codes.NotFound, "database %q not found", name)
+	}
+	if databaseMessage.Deleted {
+		return nil, status.Errorf(codes.NotFound, "database %q was deleted", name)
 	}
 	return databaseMessage, nil
 }
@@ -249,7 +235,7 @@ func getListDatabaseFilter(filter string) (*store.ListResourceFilter, error) {
 			return fmt.Sprintf("(db.metadata->>'drifted')::boolean %s TRUE", condition), nil
 		case "exclude_unassigned":
 			if excludeUnassigned, ok := value.(bool); excludeUnassigned && ok {
-				positionalArgs = append(positionalArgs, base.DefaultProjectID)
+				positionalArgs = append(positionalArgs, common.DefaultProjectID)
 				return fmt.Sprintf("db.project != $%d", len(positionalArgs)), nil
 			}
 			return "TRUE", nil
@@ -1138,7 +1124,7 @@ func (s *DatabaseService) convertToDatabase(ctx context.Context, database *store
 		Project:              common.FormatProject(database.ProjectID),
 		Environment:          environment,
 		EffectiveEnvironment: effectiveEnvironment,
-		SchemaVersion:        database.SchemaVersion,
+		SchemaVersion:        database.Metadata.GetVersion(),
 		Labels:               database.Metadata.Labels,
 		InstanceResource:     instanceResource,
 		BackupAvailable:      database.Metadata.GetBackupAvailable(),

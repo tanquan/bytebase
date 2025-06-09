@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/store"
 	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
@@ -95,30 +94,31 @@ func (s *IssueService) convertToIssue(ctx context.Context, issue *store.IssueMes
 }
 
 func (s *IssueService) convertToIssueReleasers(ctx context.Context, issue *store.IssueMessage) ([]string, error) {
-	if issue.Type != base.IssueDatabaseGeneral {
+	if issue.Type != storepb.Issue_DATABASE_CHANGE {
 		return nil, nil
 	}
-	if issue.Status != base.IssueOpen {
+	if issue.Status != storepb.Issue_OPEN {
 		return nil, nil
 	}
 	if issue.PipelineUID == nil {
 		return nil, nil
 	}
-	stages, err := s.store.ListStageV2(ctx, *issue.PipelineUID)
+	tasks, err := s.store.ListTasks(ctx, &store.TaskFind{PipelineID: issue.PipelineUID})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to list issue stages")
+		return nil, errors.Wrapf(err, "failed to list issue tasks")
 	}
-	var activeStage *store.StageMessage
-	for _, stage := range stages {
-		if stage.Active {
-			activeStage = stage
+	// Find the active environment (first environment with non-completed tasks)
+	var activeEnvironment string
+	for _, task := range tasks {
+		if task.LatestTaskRunStatus != storepb.TaskRun_DONE && task.LatestTaskRunStatus != storepb.TaskRun_SKIPPED {
+			activeEnvironment = task.Environment
 			break
 		}
 	}
-	if activeStage == nil {
+	if activeEnvironment == "" {
 		return nil, nil
 	}
-	policy, err := GetValidRolloutPolicyForStage(ctx, s.store, activeStage)
+	policy, err := GetValidRolloutPolicyForEnvironment(ctx, s.store, activeEnvironment)
 	if err != nil {
 		return nil, err
 	}
@@ -146,52 +146,52 @@ func (s *IssueService) convertToIssueReleasers(ctx context.Context, issue *store
 	return releasers, nil
 }
 
-func convertToIssueType(t base.IssueType) v1pb.Issue_Type {
+func convertToIssueType(t storepb.Issue_Type) v1pb.Issue_Type {
 	switch t {
-	case base.IssueDatabaseGeneral:
+	case storepb.Issue_DATABASE_CHANGE:
 		return v1pb.Issue_DATABASE_CHANGE
-	case base.IssueGrantRequest:
+	case storepb.Issue_GRANT_REQUEST:
 		return v1pb.Issue_GRANT_REQUEST
-	case base.IssueDatabaseDataExport:
-		return v1pb.Issue_DATABASE_DATA_EXPORT
+	case storepb.Issue_DATABASE_EXPORT:
+		return v1pb.Issue_DATABASE_EXPORT
 	default:
 		return v1pb.Issue_TYPE_UNSPECIFIED
 	}
 }
 
-func convertToAPIIssueType(t v1pb.Issue_Type) (base.IssueType, error) {
+func convertToAPIIssueType(t v1pb.Issue_Type) (storepb.Issue_Type, error) {
 	switch t {
 	case v1pb.Issue_DATABASE_CHANGE:
-		return base.IssueDatabaseGeneral, nil
+		return storepb.Issue_DATABASE_CHANGE, nil
 	case v1pb.Issue_GRANT_REQUEST:
-		return base.IssueGrantRequest, nil
-	case v1pb.Issue_DATABASE_DATA_EXPORT:
-		return base.IssueDatabaseDataExport, nil
+		return storepb.Issue_GRANT_REQUEST, nil
+	case v1pb.Issue_DATABASE_EXPORT:
+		return storepb.Issue_DATABASE_EXPORT, nil
 	default:
-		return base.IssueType(""), errors.Errorf("invalid issue type %v", t)
+		return storepb.Issue_ISSUE_TYPE_UNSPECIFIED, errors.Errorf("invalid issue type %v", t)
 	}
 }
 
-func convertToAPIIssueStatus(status v1pb.IssueStatus) (base.IssueStatus, error) {
+func convertToAPIIssueStatus(status v1pb.IssueStatus) (storepb.Issue_Status, error) {
 	switch status {
 	case v1pb.IssueStatus_OPEN:
-		return base.IssueOpen, nil
+		return storepb.Issue_OPEN, nil
 	case v1pb.IssueStatus_DONE:
-		return base.IssueDone, nil
+		return storepb.Issue_DONE, nil
 	case v1pb.IssueStatus_CANCELED:
-		return base.IssueCanceled, nil
+		return storepb.Issue_CANCELED, nil
 	default:
-		return base.IssueStatus(""), errors.Errorf("invalid issue status %v", status)
+		return storepb.Issue_ISSUE_STATUS_UNSPECIFIED, errors.Errorf("invalid issue status %v", status)
 	}
 }
 
-func convertToIssueStatus(status base.IssueStatus) v1pb.IssueStatus {
+func convertToIssueStatus(status storepb.Issue_Status) v1pb.IssueStatus {
 	switch status {
-	case base.IssueOpen:
+	case storepb.Issue_OPEN:
 		return v1pb.IssueStatus_OPEN
-	case base.IssueDone:
+	case storepb.Issue_DONE:
 		return v1pb.IssueStatus_DONE
-	case base.IssueCanceled:
+	case storepb.Issue_CANCELED:
 		return v1pb.IssueStatus_CANCELED
 	default:
 		return v1pb.IssueStatus_ISSUE_STATUS_UNSPECIFIED
@@ -414,12 +414,10 @@ func convertToIssueCommentEventApprovalStatus(s storepb.IssueCommentPayload_Appr
 func convertToIssueCommentEventTaskUpdate(u *storepb.IssueCommentPayload_TaskUpdate_) *v1pb.IssueComment_TaskUpdate_ {
 	return &v1pb.IssueComment_TaskUpdate_{
 		TaskUpdate: &v1pb.IssueComment_TaskUpdate{
-			Tasks:                   u.TaskUpdate.Tasks,
-			FromSheet:               u.TaskUpdate.FromSheet,
-			ToSheet:                 u.TaskUpdate.ToSheet,
-			FromEarliestAllowedTime: u.TaskUpdate.FromEarliestAllowedTime,
-			ToEarliestAllowedTime:   u.TaskUpdate.ToEarliestAllowedTime,
-			ToStatus:                convertToIssueCommentEventTaskUpdateStatus(u.TaskUpdate.ToStatus),
+			Tasks:     u.TaskUpdate.Tasks,
+			FromSheet: u.TaskUpdate.FromSheet,
+			ToSheet:   u.TaskUpdate.ToSheet,
+			ToStatus:  convertToIssueCommentEventTaskUpdateStatus(u.TaskUpdate.ToStatus),
 		},
 	}
 }

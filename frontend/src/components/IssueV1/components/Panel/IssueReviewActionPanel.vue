@@ -112,6 +112,7 @@ import PlanCheckRunBar from "@/components/PlanCheckRun/PlanCheckRunBar.vue";
 import RequiredStar from "@/components/RequiredStar.vue";
 import { databaseForTask } from "@/components/Rollout/RolloutDetail";
 import { issueServiceClient } from "@/grpcweb";
+import { useCurrentProjectV1 } from "@/store";
 import { Issue_Approver_Status } from "@/types/proto/v1/issue_service";
 import { ErrorList } from "../common";
 import CommonDrawer from "./CommonDrawer.vue";
@@ -132,6 +133,7 @@ const state = reactive<LocalState>({
   loading: false,
 });
 const { events, issue, selectedTask } = useIssueContext();
+const { project } = useCurrentProjectV1();
 const comment = ref("");
 const performActionAnyway = ref(false);
 
@@ -148,7 +150,7 @@ const title = computed(() => {
 });
 
 const database = computed(() =>
-  databaseForTask(issue.value.projectEntity, selectedTask.value)
+  databaseForTask(project.value, selectedTask.value)
 );
 
 const showPerformActionAnyway = computed(() => {

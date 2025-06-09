@@ -90,15 +90,6 @@ service PlanService {
     option (bytebase.v1.permission) = "bb.planCheckRuns.run";
     option (bytebase.v1.auth_method) = IAM;
   }
-
-  rpc PreviewPlan(PreviewPlanRequest) returns (PreviewPlanResponse) {
-    option (google.api.http) = {
-      post: "/v1/{project=projects/*}:previewPlan"
-      body: "*"
-    };
-    option (bytebase.v1.permission) = "bb.plans.preview";
-    option (bytebase.v1.auth_method) = IAM;
-  }
 }
 
 message GetPlanRequest {
@@ -224,12 +215,17 @@ message Plan {
   // The issue associated with the plan.
   // Can be empty.
   // Format: projects/{project}/issues/{issue}
-  string issue = 3;
+  string issue = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The rollout associated with the plan.
+  // Can be empty.
+  // Format: projects/{project}/rollouts/{rollout}
+  string rollout = 15 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   string title = 4;
   string description = 5;
 
-  repeated Step steps = 6;
+  repeated Spec specs = 14;
 
   message Step {
     string title = 2;
@@ -237,12 +233,8 @@ message Plan {
   }
 
   message Spec {
-    // earliest_allowed_time the earliest execution time of the change.
-    google.protobuf.Timestamp earliest_allowed_time = 4;
     // A UUID4 string that uniquely identifies the Spec.
     string id = 5;
-
-    SpecReleaseSource spec_release_source = 8;
 
     oneof config {
       CreateDatabaseConfig create_database_config = 1;
@@ -264,8 +256,6 @@ message Plan {
   // - WARNING
   // - ERROR
   map<string, int32> plan_check_run_status_count = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
-
-  ReleaseSource release_source = 12;
 
   Deployment deployment = 13;
 
@@ -294,20 +284,21 @@ message Plan {
   message ChangeDatabaseConfig {
     reserved 5, 6;
 
-    // The resource name of the target.
-    // Format: instances/{instance-id}/databases/{database-name}.
-    // Format: projects/{project}/databaseGroups/{databaseGroup}.
-    string target = 1;
+    // The list of targets.
+    // Multi-database format: [instances/{instance-id}/databases/{database-name}].
+    // Single database group format: [projects/{project}/databaseGroups/{databaseGroup}].
+    repeated string targets = 10;
     // The resource name of the sheet.
     // Format: projects/{project}/sheets/{sheet}
     string sheet = 2;
+
+    // The resource name of the release.
+    // Format: projects/{project}/releases/{release}
+    string release = 9 [(google.api.resource_reference) = {type: "bytebase.com/Release"}];
+
     // Type is the database change type.
     enum Type {
       TYPE_UNSPECIFIED = 0;
-      // Used for establishing schema baseline, this is used when
-      // 1. Onboard the database into Bytebase since Bytebase needs to know the current database schema.
-      // 2. Had schema drift and need to re-establish the baseline.
-      BASELINE = 1;
       // Used for DDL changes including CREATE DATABASE.
       MIGRATE = 2;
       // Used for schema changes via state-based schema migration including CREATE DATABASE.
@@ -318,25 +309,18 @@ message Plan {
       DATA = 6;
     }
     Type type = 3;
-    // schema_version is parsed from file name.
-    // It is automatically generated in the UI workflow.
-    string schema_version = 4;
 
     map<string, string> ghost_flags = 7;
 
-    message PreUpdateBackupDetail {
-      // The database for keeping the backup data.
-      // Format: instances/{instance}/databases/{database}
-      string database = 1;
-    }
     // If set, a backup of the modified data will be created automatically before any changes are applied.
-    optional PreUpdateBackupDetail pre_update_backup_detail = 8;
+    bool enable_prior_backup = 8;
   }
 
   message ExportDataConfig {
-    // The resource name of the target.
-    // Format: instances/{instance-id}/databases/{database-name}
-    string target = 1;
+    // The list of targets.
+    // Multi-database format: [instances/{instance-id}/databases/{database-name}].
+    // Single database group format: [projects/{project}/databaseGroups/{databaseGroup}].
+    repeated string targets = 5;
     // The resource name of the sheet.
     // Format: projects/{project}/sheets/{sheet}
     string sheet = 2;
@@ -359,18 +343,6 @@ message Plan {
       // Format: instances/{instance-id}/databases/{database-name}.
       repeated string databases = 2;
     }
-  }
-
-  message ReleaseSource {
-    // The release.
-    // Format: projects/{project}/releases/{release}
-    string release = 1 [(google.api.resource_reference) = {type: "bytebase.com/Release"}];
-  }
-
-  message SpecReleaseSource {
-    // Format: projects/{project}/releases/{release}/files/{file}
-    // {file} is URL path escaped.
-    string file = 1;
   }
 }
 
@@ -435,45 +407,6 @@ message BatchCancelPlanCheckRunsRequest {
 }
 
 message BatchCancelPlanCheckRunsResponse {}
-
-message PreviewPlanRequest {
-  // The name of the project.
-  // Format: projects/{project}
-  string project = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {type: "bytebase.com/Project"}
-  ];
-
-  // The release used for preview.
-  string release = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {type: "bytebase.com/Release"}
-  ];
-
-  // The targets to deploy.
-  // Can be database or databaseGroup.
-  // Format:
-  // projects/{project}/databaseGroups/{databaseGroup}
-  // instances/{instance}/databases/{database}
-  repeated string targets = 3 [(google.api.field_behavior) = REQUIRED];
-
-  bool allow_out_of_order = 4;
-}
-
-message PreviewPlanResponse {
-  Plan plan = 1;
-
-  // The out of order files of each database.
-  repeated DatabaseFiles out_of_order_files = 2;
-  // The applied but modified files of each database.
-  repeated DatabaseFiles applied_but_modified_files = 3;
-
-  message DatabaseFiles {
-    string database = 1;
-    // Format: projects/{project}/releases/{release}/files/{file_id}
-    repeated string files = 2;
-  }
-}
 
 message PlanCheckRun {
   reserved 2;

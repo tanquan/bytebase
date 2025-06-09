@@ -335,11 +335,12 @@ message Stage {
   // Format: projects/{project}/rollouts/{rollout}/stages/{stage}
   string name = 1;
 
-  // The id comes from the deployment config.
-  // Format: UUID
-  // Empty for legacy stages.
+  // id is the environment id of the stage.
+  // e.g. "prod".
   string id = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
 
+  // environment is the environment of the stage.
+  // Format: environments/{environment}.
   string environment = 4;
 
   repeated Task tasks = 5;
@@ -379,8 +380,6 @@ message Task {
     GENERAL = 1;
     // use payload DatabaseCreate
     DATABASE_CREATE = 2;
-    // use payload DatabaseSchemaBaseline
-    DATABASE_SCHEMA_BASELINE = 3;
     // use payload DatabaseSchemaUpdate
     DATABASE_SCHEMA_UPDATE = 4;
     // use payload DatabaseSchemaUpdate
@@ -390,7 +389,7 @@ message Task {
     // use payload DatabaseDataUpdate
     DATABASE_DATA_UPDATE = 8;
     // use payload DatabaseDataExport
-    DATABASE_DATA_EXPORT = 12;
+    DATABASE_EXPORT = 12;
   }
   Type type = 6;
 
@@ -400,7 +399,6 @@ message Task {
 
   oneof payload {
     DatabaseCreate database_create = 9;
-    DatabaseSchemaBaseline database_schema_baseline = 10;
     DatabaseSchemaUpdate database_schema_update = 11;
     DatabaseDataUpdate database_data_update = 12;
     DatabaseDataExport database_data_export = 16;
@@ -419,10 +417,6 @@ message Task {
     string character_set = 5;
     string collation = 6;
     string environment = 7;
-  }
-
-  message DatabaseSchemaBaseline {
-    string schema_version = 1;
   }
 
   message DatabaseSchemaUpdate {

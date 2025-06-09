@@ -225,11 +225,14 @@
     "summary": "Tóm tắt",
     "errors": "Lỗi",
     "removed": "LOẠI BỎ",
-    "options": "Tùy chọn",
     "submit": "Nộp"
   },
   "error-page": {
     "go-back-home": "Về trang chủ"
+  },
+  "refresh-remind": {
+    "title": "Đã phát hiện phiên bản lỗi thời",
+    "description": "Đã phát hiện phiên bản lỗi thời. Vui lòng làm mới trang."
   },
   "task": {
     "current-task": "Nhiệm vụ hiện tại",
@@ -248,9 +251,6 @@
       },
       "summary-report": "Báo cáo tổng hợp"
     },
-    "earliest-allowed-time": "Thời gian triển khai sớm nhất",
-    "earliest-allowed-time-hint": "@:{'task.earliest-allowed-time'} là thời gian sớm nhất để triển khai sự cố, bạn không thể triển khai trước thời gian này; nếu không được chỉ định, sự cố sẽ chạy khi đáp ứng tất cả các tiêu chí.",
-    "earliest-allowed-time-unset": "Không đặt",
     "comment": "Bình luận",
     "started": "Bắt đầu",
     "view-change": "Xem thay đổi",
@@ -272,6 +272,12 @@
     "action-all-tasks-in-current-stage": "{action} tất cả các tác vụ trong giai đoạn hiện tại",
     "cancel-task": "Hủy tác vụ | Hủy các tác vụ",
     "created": "Đã tạo",
+    "run-immediately": "Chạy nhiệm vụ ngay lập tức",
+    "scheduled-time": "Thời gian đã lên lịch",
+    "select-scheduled-time": "Chọn thời gian đã lên lịch",
+    "error": {
+      "scheduled-time-must-be-in-the-future": "Thời gian dự kiến phải ở trong tương lai"
+    },
     "online-migration": {
       "self": "Di chuyển trực tuyến",
       "configure-ghost-parameters": "Cấu hình tham số gh-ost",
@@ -280,8 +286,7 @@
       "error": {
         "nothing-changed": "Không có gì thay đổi",
         "not-applicable": {
-          "task-doesnt-meet-ghost-requirement": "Nhiệm vụ không đáp ứng được yêu cầu của gh-ost",
-          "needs-database-for-saving-temp-data": "Cần có cơ sở dữ liệu ({database}) để lưu dữ liệu tạm thời."
+          "database-doesnt-meet-ghost-requirement": "Cơ sở dữ liệu {database} không đáp ứng được yêu cầu của gh-ost"
         }
       },
       "advice-split-statement-to-single-online-migration-issue": "Đề nghị chia câu lệnh này thành một vấn đề di chuyển trực tuyến."
@@ -301,7 +306,6 @@
     "license-expired": "Giấy phép {plan} của bạn đã hết hạn vào {expireAt}.",
     "license-expires": "Giấy phép {plan} của bạn sẽ hết hạn sau {days} ngày vào {expireAt}.",
     "trial-expires": "Bản dùng thử miễn phí {plan} của bạn sẽ hết hạn trong {days} ngày nữa vào {expireAt}.",
-    "trial-expired": "Bản dùng thử miễn phí {plan} của bạn đã hết hạn.",
     "deploy": "Tự lưu trữ",
     "cloud": "Đám mây",
     "request-demo": "Đặt lịch giới thiệu sản phẩm 30 phút.",
@@ -508,7 +512,7 @@
         },
         "maximum-role-expiration": {
           "self": "Thời gian hết hạn vai trò tối đa",
-          "description": "Thời gian hết hạn vai trò tối đa là khoảng thời gian tối đa một vai trò có thể được cấp cho người dùng. (Chỉ dành cho vai trò người truy vấn và người xuất)",
+          "description": "Thời hạn vai trò tối đa là thời hạn tối đa mà một vai trò có thể được cấp cho người dùng, sẽ áp dụng cho tất cả các vai trò trong dự án ngoại trừ chủ sở hữu dự án.",
           "days": "Ngày",
           "never-expires": "Không bao giờ hết hạn"
         },
@@ -694,11 +698,6 @@
       "json-format-example": "Ví dụ định dạng JSON",
       "view-example": "Xem ví dụ"
     },
-    "release": {
-      "new-version-available": "Phiên bản mới có sẵn",
-      "new-version-available-with-tag": "Phiên bản mới {tag} có sẵn",
-      "new-version-content": "Phiên bản mới {tag} hiện đã có! Vui lòng xem tài liệu của chúng tôi để cài đặt."
-    },
     "mail-delivery": {
       "description": "Định cấu hình thông tin SMTP sẽ cho phép người dùng nhận báo cáo cơ sở dữ liệu qua email, chẳng hạn như báo cáo truy vấn chậm hàng tuần.",
       "field": {
@@ -714,6 +713,19 @@
       },
       "updated-tip": "Đã cập nhật cài đặt gửi thư thành công",
       "tested-tip": "Gửi thành công, vui lòng kiểm tra hộp thư đến của {address}."
+    }
+  },
+  "remind": {
+    "release": {
+      "new-version-available": "Phiên bản mới có sẵn",
+      "new-version-available-with-tag": "Phiên bản mới {tag} có sẵn",
+      "new-version-content": "Phiên bản mới {tag} hiện đã có! Vui lòng xem tài liệu của chúng tôi để cài đặt."
+    },
+    "role-expire": {
+      "title": "Nhắc nhở hết hạn vai trò",
+      "content": "Các vai trò sau của bạn sắp hết hạn",
+      "checkbox": "Không nhắc nhở cho đến khi có bất kỳ cập nhật nào",
+      "go-to-project": "Đi đến trang dự án"
     }
   },
   "activity": {
@@ -890,6 +902,7 @@
     "issue-name": "Tên vấn đề",
     "grant-request": {
       "export-rows": "Số dòng xuất tối đa",
+      "select-export-rows": "Chọn số hàng xuất tối đa",
       "expired-at": "Hết hạn vào",
       "all-databases": "Tất cả",
       "all-databases-tip": "Tất cả cơ sở dữ liệu hiện tại và tương lai trong dự án này.",
@@ -905,18 +918,9 @@
         "selected-stage": "Giai đoạn đã chọn",
         "all-tasks": "Tất cả tác vụ"
       },
-      "current-change-will-apply-to-all-tasks-in-batch-mode": "Trong chế độ hàng loạt, thay đổi hiện tại sẽ được áp dụng cho tất cả các tác vụ.",
-      "current-change-will-apply-to-all-tasks": "Thay đổi hiện tại sẽ được áp dụng cho tất cả các tác vụ."
+      "current-change-will-apply-to-all-tasks-in-batch-mode": "Trong chế độ hàng loạt, thay đổi hiện tại sẽ được áp dụng cho tất cả các tác vụ."
     },
-    "not-editable-legacy-issue": "Vấn đề này không thể chỉnh sửa vì nó được tạo trong phiên bản cũ của Bytebase",
     "action-anyway": "{action} bằng mọi cách",
-    "disallow-edit-reasons": {
-      "issue-is-done": "Vấn đề đã hoàn tất",
-      "issue-is-canceled": "Vấn đề đã bị hủy",
-      "task-is-x-status": "Tác vụ là {status}",
-      "task-is-running-cancel-first": "Tác vụ đang chạy, hãy hủy tác vụ trước khi thay đổi giá trị này"
-    },
-    "you-are-not-allowed-to-change-this-value": "Bạn không được phép thay đổi giá trị này",
     "sql-check": {
       "sql-checks": "Kiểm tra SQL",
       "not-executed-yet": "Chưa được thực hiện",
@@ -940,9 +944,6 @@
       "format": "Định dạng",
       "encrypt": "Mã hóa",
       "file-downloaded": "Tệp đã tải xuống"
-    },
-    "update-rollout-time": {
-      "self": "Cập nhật thời gian triển khai"
     },
     "task-run": {
       "logs": "Nhật ký",
@@ -991,6 +992,82 @@
     "schema-drift-detected": {
       "self": "Đã phát hiện sự trôi dạt của sơ đồ",
       "description": "Cơ sở dữ liệu được chọn có sự trôi dạt lược đồ. Vui lòng đảm bảo rằng sự trôi dạt này được mong đợi và an toàn để áp dụng."
+    }
+  },
+  "plan": {
+    "add-spec": "Thêm thông số kỹ thuật",
+    "change-type": "Thay đổi loại",
+    "schema-migration": "Di chuyển lược đồ",
+    "schema-migration-description": "Sửa đổi lược đồ cơ sở dữ liệu (DDL)",
+    "data-change": "Thay đổi dữ liệu",
+    "data-change-description": "Sửa đổi dữ liệu (DML)",
+    "select-targets": "Chọn mục tiêu",
+    "overview": {
+      "title": "Tổng quan về kế hoạch",
+      "description": "Xem và quản lý tất cả các thông số kỹ thuật trong kế hoạch này",
+      "total-specs": "Tổng số thông số kỹ thuật",
+      "total-targets": "Tổng số mục tiêu",
+      "check-status": "Kiểm tra trạng thái",
+      "no-checks": "Không kiểm tra",
+      "affected-resources": "Tài nguyên bị ảnh hưởng"
+    },
+    "navigator": {
+      "overview": "Tổng quan",
+      "specifications": "Thông số kỹ thuật",
+      "spec-number": "Đặc điểm kỹ thuật {number}",
+      "no-specifications": "Không có thông số kỹ thuật",
+      "statement-empty": "Câu lệnh trống rỗng"
+    },
+    "spec": {
+      "type": {
+        "create-database": "Tạo cơ sở dữ liệu",
+        "schema-change": "Thay đổi sơ đồ",
+        "data-change": "Thay đổi dữ liệu",
+        "ghost-migration": "Di cư của ma",
+        "database-change": "Thay đổi cơ sở dữ liệu",
+        "export-data": "Xuất dữ liệu",
+        "unknown": "Không rõ"
+      },
+      "status": {
+        "pass": "Vượt qua",
+        "warn": "Cảnh báo",
+        "error": "Lỗi"
+      }
+    },
+    "targets": {
+      "title": "Mục tiêu",
+      "no-targets-found": "Không tìm thấy mục tiêu",
+      "no-targets": "Không có mục tiêu",
+      "one-target": "1 mục tiêu",
+      "multiple-targets": "{count} mục tiêu",
+      "one-database": "1 cơ sở dữ liệu",
+      "multiple-databases": "{count} cơ sở dữ liệu",
+      "database-group": "Nhóm cơ sở dữ liệu",
+      "database-not-found": "Không tìm thấy cơ sở dữ liệu",
+      "environment": "Môi trường: {environment}",
+      "type": {
+        "instance": "Ví dụ",
+        "database": "Cơ sở dữ liệu",
+        "database-group": "Nhóm cơ sở dữ liệu"
+      }
+    },
+    "options": {
+      "self": "Tùy chọn",
+      "applies-to-all-tasks": "Áp dụng cho tất cả các nhiệm vụ",
+      "applies-to-some-tasks": "Áp dụng cho một số tác vụ {count}/{total}",
+      "split-into-multiple-issues-tip": "Nếu bạn muốn cấu hình các tùy chọn khác nhau cho mỗi tác vụ, vui lòng chia thành nhiều vấn đề."
+    },
+    "pre-backup": {
+      "only-some-databases-checked": "Chỉ một số cơ sở dữ liệu được kiểm tra",
+      "some-databases-not-meeting-requirements": "Một số cơ sở dữ liệu ({databases}) không đáp ứng được yêu cầu",
+      "some-databases-have-issues": "{count} cơ sở dữ liệu có vấn đề | {count} cơ sở dữ liệu có vấn đề",
+      "configuration-has-issues": "Cấu hình có vấn đề {count} | Cấu hình có vấn đề {count}"
+    },
+    "ghost": {
+      "only-some-databases-checked": "Chỉ một số cơ sở dữ liệu được kiểm tra",
+      "some-databases-not-meeting-requirements": "Một số cơ sở dữ liệu ({databases}) không đáp ứng được yêu cầu",
+      "some-databases-have-issues": "{count} cơ sở dữ liệu có vấn đề | {count} cơ sở dữ liệu có vấn đề",
+      "configuration-has-issues": "Cấu hình có vấn đề {count} | Cấu hình có vấn đề {count}"
     }
   },
   "quick-action": {
@@ -1383,7 +1460,6 @@
     "successfully-transferred-databases": "Đã chuyển thành công cơ sở dữ liệu",
     "nullable": "Có thể null",
     "expression": "Biểu thức",
-    "position": "Vị trí",
     "unique": "Duy nhất",
     "visible": "Hiển thị",
     "comment": "Bình luận",
@@ -1484,7 +1560,9 @@
     "foreign-key": {
       "reference": "Tham chiếu"
     },
-    "create-target-database-or-schema-for-backup": "Vui lòng tạo cơ sở dữ liệu hoặc lược đồ đích cho bản sao lưu trước",
+    "checks": "Kiểm tra",
+    "backup-unavailable-for-databases": "Sao lưu không khả dụng cho cơ sở dữ liệu: {databases}",
+    "engine-not-supported-for-backup": "Sao lưu trước đó không được hỗ trợ cho: {databases}",
     "revision": {
       "self": "Bản sửa đổi",
       "applied-at": "Đã áp dụng vào",
@@ -1505,8 +1583,7 @@
         "self": "Đường cơ sở mới",
         "successfully-established": "Đã thiết lập thành công đường cơ sở mới"
       }
-    },
-    "checks": "Kiểm tra"
+    }
   },
   "project": {
     "table": {
@@ -1659,7 +1736,6 @@
       "view-by-roles": "Xem theo vai trò",
       "cannot-remove-last-owner": "Không thể xóa chủ sở hữu cuối cùng của một dự án",
       "revoke-role-from-user": "Thu hồi '{role}' từ '{user}'",
-      "assign-reason": "(Tùy chọn) Lý do",
       "never-expires": "Không bao giờ",
       "role-description": "Mô tả vai trò",
       "role-never-expires": "Vai trò này không bao giờ hết hạn.",
@@ -1688,7 +1764,6 @@
       "client-cert": "Chứng chỉ máy khách"
     },
     "ssh-type": {
-      "tunnel": "@:{'data-source.ssh.tunnel'}",
       "tunnel-and-private-key": "@:{'data-source.ssh.tunnel'} + @:{'data-source.ssh.private-key'}",
       "none": "Không có"
     },
@@ -1807,7 +1882,19 @@
       "batch": "Hàng loạt",
       "select-database-group": "Bạn có thể {select-database-group} để truy vấn hàng loạt",
       "description": "Truy vấn hàng loạt {database} cơ sở dữ liệu bổ sung và {group} nhóm cơ sở dữ liệu trong {project}.",
-      "show-or-hide-empty-query-results": "Hiển thị / ẩn kết quả truy vấn trống"
+      "show-or-hide-empty-query-results": "Hiển thị / ẩn kết quả truy vấn trống",
+      "select-data-source": {
+        "self": "Chọn nguồn dữ liệu cho lô",
+        "tooltip": "Sẽ tìm các nguồn dữ liệu có sẵn với chính sách hạn chế, sau đó áp dụng lựa chọn.",
+        "admin": "Quản trị viên",
+        "readonly": "Chỉ đọc",
+        "not-match": "Nguồn dữ liệu không khớp, mong đợi {expect} nhưng lại nhận được {actual}."
+      }
+    },
+    "batch-export": {
+      "self": "Xuất hàng loạt",
+      "tooltip": "Chọn tối đa {max} cơ sở dữ liệu để xuất hàng loạt kết quả truy vấn mới nhất",
+      "failed-for-db": "Không xuất được dữ liệu cho {db}"
     },
     "execute-query": "Thực hiện truy vấn",
     "pending-query": "Đang chờ truy vấn",
@@ -2539,15 +2626,8 @@
     "files": "Tệp",
     "create": "Tạo bản phát hành",
     "select": "Chọn bản phát hành",
-    "tasks-to-apply": "Tác vụ để áp dụng",
-    "out-of-order-files": "Tệp không theo thứ tự",
-    "applied-but-modifed-files": "Đã áp dụng nhưng tệp đã sửa đổi",
-    "allow-out-of-order": "Cho phép không theo thứ tự",
     "archive-this-release": "Lưu trữ bản phát hành này",
     "total-files": "Tổng số {count} tệp",
-    "no-tasks-to-apply": {
-      "self": "Không có tác vụ nào để áp dụng"
-    },
     "actions": {
       "new-file": "Tệp mới",
       "import-from-release": "Nhập từ bản phát hành"
@@ -2555,8 +2635,7 @@
     "messages": {
       "succeed-to-create-release": "Đã tạo thành công bản phát hành",
       "files-will-always-be-sorted-and-executed-in-version-order": "Các tệp sẽ luôn được sắp xếp và thực hiện theo thứ tự phiên bản.",
-      "cannot-modify-files-after-created": "Bạn không thể sửa đổi tệp sau khi bản phát hành được tạo.",
-      "bytebase-will-skip-those-files-has-been-applied-on-target-database": "Bytebase sẽ tự động bỏ qua những file đã được thực thi trên cơ sở dữ liệu đích."
+      "cannot-modify-files-after-created": "Bạn không thể sửa đổi tệp sau khi bản phát hành được tạo."
     },
     "usage-description": "Bản phát hành chỉ được sử dụng trong GitOps tùy chỉnh với tích hợp API."
   },

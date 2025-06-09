@@ -22,16 +22,16 @@
             type="warning"
           />
           <div
-            class="flex flex-col gap-y-1 shrink-0 overflow-y-hidden justify-start"
+            class="flex flex-row gap-x-2 shrink-0 overflow-y-hidden justify-start items-center"
           >
             <label class="font-medium text-control">
               {{ $t("common.stage") }}
             </label>
-            <div class="textinfolabel break-all">
+            <span class="break-all">
               {{
                 environmentStore.getEnvironmentByName(stage.environment).title
               }}
-            </div>
+            </span>
           </div>
         </template>
         <div
@@ -42,9 +42,12 @@
               {{ $t("common.task") }}
             </template>
             <template v-else>{{ $t("common.tasks") }}</template>
+            <span class="font-mono opacity-80" v-if="taskList.length > 1"
+              >({{ taskList.length }})</span
+            >
           </label>
           <div class="flex-1 overflow-y-auto">
-            <NScrollbar>
+            <NScrollbar class="max-h-64">
               <ul class="text-sm space-y-2">
                 <li
                   v-for="task in taskList"
@@ -69,7 +72,9 @@
 
         <PlanCheckRunBar
           v-if="
-            (action === 'ROLLOUT' || action === 'RETRY') &&
+            (action === 'ROLLOUT' ||
+              action === 'RETRY' ||
+              action === 'RESTART') &&
             planCheckRunList.length > 0
           "
           class="shrink-0 flex-col gap-y-1"
@@ -104,6 +109,40 @@
             }"
           />
         </div>
+
+        <div
+          v-if="showScheduledTimePicker"
+          class="flex flex-col gap-y-3 shrink-0"
+        >
+          <div class="flex items-center">
+            <NCheckbox
+              :checked="runTimeInMS === undefined"
+              @update:checked="
+                (checked) =>
+                  (runTimeInMS = checked
+                    ? undefined
+                    : Date.now() + DEFAULT_RUN_DELAY_MS)
+              "
+            >
+              {{ $t("task.run-immediately") }}
+            </NCheckbox>
+          </div>
+          <div v-if="runTimeInMS !== undefined" class="flex flex-col gap-y-1">
+            <p class="font-medium text-control">
+              {{ $t("task.scheduled-time", taskList.length) }}
+            </p>
+            <NDatePicker
+              v-model:value="runTimeInMS"
+              type="datetime"
+              :placeholder="$t('task.select-scheduled-time')"
+              :is-date-disabled="
+                (date: number) => date < dayjs().startOf('day').valueOf()
+              "
+              format="yyyy-MM-dd HH:mm:ss"
+              clearable
+            />
+          </div>
+        </div>
       </div>
     </template>
     <template #footer>
@@ -134,7 +173,7 @@
               <NButton
                 :disabled="confirmErrors.length > 0"
                 v-bind="taskRolloutActionButtonProps(action)"
-                @click="handleConfirm(action!, comment)"
+                @click="handleConfirm(action!)"
               >
                 {{ taskRolloutActionDialogButtonName(action, taskList) }}
               </NButton>
@@ -151,10 +190,12 @@
 
 <script setup lang="ts">
 import { head, uniqBy } from "lodash-es";
+import Long from "long";
 import {
   NAlert,
   NButton,
   NCheckbox,
+  NDatePicker,
   NInput,
   NScrollbar,
   NTag,
@@ -176,12 +217,23 @@ import PlanCheckRunBar from "@/components/PlanCheckRun/PlanCheckRunBar.vue";
 import { planCheckRunSummaryForCheckRunList } from "@/components/PlanCheckRun/common";
 import { databaseForTask } from "@/components/Rollout/RolloutDetail";
 import { rolloutServiceClient } from "@/grpcweb";
-import { pushNotification, useEnvironmentV1Store } from "@/store";
-import type { Task, TaskRun } from "@/types/proto/v1/rollout_service";
+import {
+  pushNotification,
+  useEnvironmentV1Store,
+  useCurrentProjectV1,
+} from "@/store";
+import type {
+  BatchRunTasksRequest,
+  Task,
+  TaskRun,
+} from "@/types/proto/v1/rollout_service";
 import { Task_Status, TaskRun_Status } from "@/types/proto/v1/rollout_service";
 import { ErrorList } from "../common";
 import CommonDrawer from "./CommonDrawer.vue";
 import RolloutTaskDatabaseName from "./RolloutTaskDatabaseName.vue";
+
+// Default delay for running tasks if not scheduled immediately.
+const DEFAULT_RUN_DELAY_MS = 60000;
 
 type LocalState = {
   loading: boolean;
@@ -199,10 +251,12 @@ const { t } = useI18n();
 const state = reactive<LocalState>({
   loading: false,
 });
+const { project } = useCurrentProjectV1();
 const { issue, selectedTask, events, getPlanCheckRunsForTask } =
   useIssueContext();
 const environmentStore = useEnvironmentV1Store();
 const comment = ref("");
+const runTimeInMS = ref<number | undefined>(undefined);
 const performActionAnyway = ref(false);
 
 const title = computed(() => {
@@ -216,13 +270,21 @@ const title = computed(() => {
 });
 
 const database = computed(() =>
-  databaseForTask(issue.value.projectEntity, selectedTask.value)
+  databaseForTask(project.value, selectedTask.value)
 );
 
 const stage = computed(() => {
   const firstTask = head(props.taskList);
   if (!firstTask) return undefined;
   return stageForTask(issue.value, firstTask);
+});
+
+const showScheduledTimePicker = computed(() => {
+  return (
+    props.action === "ROLLOUT" ||
+    props.action === "RETRY" ||
+    props.action === "RESTART"
+  );
 });
 
 const hasPreviousUnrolledStages = computed(() => {
@@ -250,7 +312,11 @@ const planCheckRunList = computed(() => {
 
 const planCheckErrors = computed(() => {
   const errors: string[] = [];
-  if (props.action === "ROLLOUT" || props.action === "RETRY") {
+  if (
+    props.action === "ROLLOUT" ||
+    props.action === "RETRY" ||
+    props.action === "RESTART"
+  ) {
     const summary = planCheckRunSummaryForCheckRunList(planCheckRunList.value);
     if (summary.errorCount > 0 || summary.warnCount) {
       errors.push(
@@ -283,28 +349,44 @@ const confirmErrors = computed(() => {
       );
     }
   }
+
+  // Validate scheduled time if not running immediately
+  if (runTimeInMS.value !== undefined) {
+    if (runTimeInMS.value <= Date.now()) {
+      errors.push(t("task.error.scheduled-time-must-be-in-the-future"));
+    }
+  }
+
   return errors;
 });
 
-const handleConfirm = async (
-  action: TaskRolloutAction,
-  comment: string | undefined
-) => {
+const handleConfirm = async (action: TaskRolloutAction) => {
   state.loading = true;
   try {
     const stage = stageForTask(issue.value, props.taskList[0]);
     if (!stage) return;
     if (action === "ROLLOUT" || action === "RETRY" || action === "RESTART") {
-      await rolloutServiceClient.batchRunTasks({
+      // Prepare the request parameters
+      const requestParams: BatchRunTasksRequest = {
         parent: stage.name,
         tasks: props.taskList.map((task) => task.name),
-        reason: comment,
-      });
+        reason: comment.value,
+      };
+      if (runTimeInMS.value !== undefined) {
+        // Convert timestamp to protobuf Timestamp format
+        const runTimeSeconds = Math.floor(runTimeInMS.value / 1000);
+        const runTimeNanos = (runTimeInMS.value % 1000) * 1000000;
+        requestParams.runTime = {
+          seconds: Long.fromNumber(runTimeSeconds),
+          nanos: runTimeNanos,
+        };
+      }
+      await rolloutServiceClient.batchRunTasks(requestParams);
     } else if (action === "SKIP") {
       await rolloutServiceClient.batchSkipTasks({
         parent: stage.name,
         tasks: props.taskList.map((task) => task.name),
-        reason: comment,
+        reason: comment.value,
       });
     } else if (action === "CANCEL") {
       const taskRunListToCancel = props.taskList
@@ -322,7 +404,7 @@ const handleConfirm = async (
         await rolloutServiceClient.batchCancelTaskRuns({
           parent: `${stage.name}/tasks/-`,
           taskRuns: taskRunListToCancel.map((taskRun) => taskRun.name),
-          reason: comment,
+          reason: comment.value,
         });
       }
     }
@@ -342,6 +424,7 @@ const handleConfirm = async (
 
 const resetState = () => {
   comment.value = "";
+  runTimeInMS.value = undefined;
   performActionAnyway.value = false;
 };
 </script>

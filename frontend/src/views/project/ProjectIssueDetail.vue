@@ -1,5 +1,5 @@
 <template>
-  <div class="-mx-4 relative overflow-x-hidden">
+  <div class="relative overflow-x-hidden">
     <template v-if="ready">
       <GrantRequestIssueDetailPage v-if="isGrantRequestIssue(issue)" />
       <DataExportIssueDetailPage v-else-if="isDatabaseDataExportIssue(issue)" />
@@ -9,20 +9,9 @@
       <NSpin />
     </div>
   </div>
-  <FeatureModal
-    :open="state.showFeatureModal"
-    feature="bb.feature.multi-tenancy"
-    @cancel="state.showFeatureModal = false"
-  />
 </template>
 
 <script lang="ts" setup>
-import { useTitle } from "@vueuse/core";
-import Emittery from "emittery";
-import { NSpin } from "naive-ui";
-import { computed, onMounted, reactive, toRef } from "vue";
-import { useI18n } from "vue-i18n";
-import { FeatureModal } from "@/components/FeatureGuard";
 import {
   DataExportIssueDetailPage,
   GrantRequestIssueDetailPage,
@@ -36,16 +25,17 @@ import {
   type PlanCheckRunEvents,
 } from "@/components/PlanCheckRun/context";
 import { useBodyLayoutContext } from "@/layouts/common";
-import { useUIStateStore } from "@/store";
+import { projectNamePrefix, useProjectByName, useUIStateStore } from "@/store";
 import {
-  isGrantRequestIssue,
   isDatabaseDataExportIssue,
+  isGrantRequestIssue,
   isValidIssueName,
 } from "@/utils";
-
-interface LocalState {
-  showFeatureModal: boolean;
-}
+import { useTitle } from "@vueuse/core";
+import Emittery from "emittery";
+import { NSpin } from "naive-ui";
+import { computed, onMounted, toRef } from "vue";
+import { useI18n } from "vue-i18n";
 
 defineOptions({
   inheritAttrs: false,
@@ -58,14 +48,14 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
-const state = reactive<LocalState>({
-  showFeatureModal: false,
-});
+const { project, ready: projectReady } = useProjectByName(
+  computed(() => `${projectNamePrefix}${props.projectId}`)
+);
 
-const { isCreating, issue, isInitializing, reInitialize, allowEditIssue } =
-  useInitializeIssue(toRef(props, "issueSlug"), toRef(props, "projectId"));
+const { isCreating, issue, isInitializing, reInitialize, allowChange } =
+  useInitializeIssue(toRef(props, "issueSlug"), project);
 const ready = computed(() => {
-  return !isInitializing.value && !!issue.value;
+  return !isInitializing.value && !!issue.value && projectReady.value;
 });
 const uiStateStore = useUIStateStore();
 
@@ -81,7 +71,7 @@ provideIssueContext(
     issue,
     ready,
     reInitialize,
-    allowEditIssue,
+    allowChange,
     ...issueBaseContext,
   },
   true /* root */
@@ -103,7 +93,7 @@ providePlanCheckRunContext(
 
 const { overrideMainContainerClass } = useBodyLayoutContext();
 
-overrideMainContainerClass("!py-0");
+overrideMainContainerClass("!py-0 !px-0");
 
 onMounted(() => {
   if (!uiStateStore.getIntroStateByKey("issue.visit")) {

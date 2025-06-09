@@ -1,27 +1,27 @@
-import { isEqual } from "lodash-es";
-import { watch } from "vue";
 import { databaseForTask } from "@/components/Rollout/RolloutDetail";
 import { useProgressivePoll } from "@/composables/useProgressivePoll";
 import {
   experimentalFetchIssueByUID,
-  useInstanceV1Store,
-  useDBSchemaV1Store,
   useChangelogStore,
+  useDBSchemaV1Store,
+  useInstanceV1Store,
 } from "@/store";
 import { useListCache } from "@/store/modules/v1/cache";
 import type { ComposedIssue } from "@/types";
 import { IssueStatus } from "@/types/proto/v1/issue_service";
 import { Task_Type } from "@/types/proto/v1/rollout_service";
-import { extractIssueUID, extractProjectResourceName } from "@/utils";
-import { flattenTaskV1List } from "@/utils";
+import { extractIssueUID, flattenTaskV1List } from "@/utils";
+import { isEqual } from "lodash-es";
+import { watch } from "vue";
 import { useIssueContext } from "./context";
+import { projectOfIssue } from "./utils";
 
 const clearCache = (issue: ComposedIssue) => {
   const changelogStore = useChangelogStore();
   const tasks = flattenTaskV1List(issue.rolloutEntity);
 
   for (const task of tasks) {
-    const database = databaseForTask(issue.projectEntity, task);
+    const database = databaseForTask(projectOfIssue(issue), task);
     switch (task.type) {
       case Task_Type.DATABASE_CREATE:
         useInstanceV1Store()
@@ -32,7 +32,7 @@ const clearCache = (issue: ComposedIssue) => {
             cache.deleteCache(database.project);
           });
         break;
-      case Task_Type.DATABASE_DATA_EXPORT:
+      case Task_Type.DATABASE_EXPORT:
       case Task_Type.UNRECOGNIZED:
       case Task_Type.TYPE_UNSPECIFIED:
         continue;
@@ -53,7 +53,7 @@ export const usePollIssue = () => {
     if (isCreating.value || !ready.value) return;
     experimentalFetchIssueByUID(
       extractIssueUID(issue.value.name),
-      extractProjectResourceName(issue.value.project)
+      issue.value.project
     ).then((updatedIssue) => {
       if (
         issue.value.status !== IssueStatus.DONE &&

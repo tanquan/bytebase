@@ -17,7 +17,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/common/log"
 	"github.com/bytebase/bytebase/backend/component/config"
@@ -36,9 +35,6 @@ const (
 	// defaultSyncInterval means never sync.
 	defaultSyncInterval = 0 * time.Second
 	MaximumOutstanding  = 100
-
-	backupDatabaseName       = "bbdataarchive"
-	oracleBackupDatabaseName = "BBDATAARCHIVE"
 )
 
 // NewSyncer creates a schema syncer.
@@ -115,7 +111,7 @@ func (s *Syncer) Run(ctx context.Context, wg *sync.WaitGroup) {
 					}
 					maximumConnections := int(instance.Metadata.GetMaximumConnections())
 					if maximumConnections <= 0 {
-						maximumConnections = base.DefaultInstanceMaximumConnections
+						maximumConnections = common.DefaultInstanceMaximumConnections
 					}
 					if s.stateCfg.InstanceOutstandingConnections.Increment(instance.ResourceID, maximumConnections) {
 						return true
@@ -327,7 +323,7 @@ func (s *Syncer) SyncInstance(ctx context.Context, instance *store.InstanceMessa
 			newDatabase, err := s.store.CreateDatabaseDefault(ctx, &store.DatabaseMessage{
 				InstanceID:   instance.ResourceID,
 				DatabaseName: databaseMetadata.Name,
-				ProjectID:    base.DefaultProjectID,
+				ProjectID:    common.DefaultProjectID,
 			})
 			if err != nil {
 				return nil, nil, nil, errors.Wrapf(err, "failed to create instance %q database %q in sync runner", instance.ResourceID, databaseMetadata.Name)
@@ -416,7 +412,7 @@ func (s *Syncer) SyncDatabaseSchemaToHistory(ctx context.Context, database *stor
 		return 0, errors.Errorf("failed to convert database metadata type")
 	}
 	metadata.LastSyncTime = timestamppb.New(time.Now())
-	metadata.BackupAvailable = s.hasBackupSchema(ctx, instance, databaseMetadata)
+	metadata.BackupAvailable = s.databaseBackupAvailable(ctx, instance, databaseMetadata)
 	metadata.Datashare = databaseMetadata.Datashare
 	if _, err := s.store.UpdateDatabase(ctx, &store.UpdateDatabaseMessage{
 		InstanceID:   database.InstanceID,
@@ -523,7 +519,7 @@ func (s *Syncer) SyncDatabaseSchema(ctx context.Context, database *store.Databas
 		return errors.Errorf("failed to convert database metadata type")
 	}
 	metadata.LastSyncTime = timestamppb.New(time.Now())
-	metadata.BackupAvailable = s.hasBackupSchema(ctx, instance, databaseMetadata)
+	metadata.BackupAvailable = s.databaseBackupAvailable(ctx, instance, databaseMetadata)
 	metadata.Datashare = databaseMetadata.Datashare
 	drifted, skipped, err := s.getSchemaDrifted(ctx, instance, database, string(rawDump))
 	if err != nil {
@@ -588,19 +584,22 @@ func (s *Syncer) getSchemaDrifted(ctx context.Context, instance *store.InstanceM
 	return changelog.Schema != latestSchema, false, nil
 }
 
-func (s *Syncer) hasBackupSchema(ctx context.Context, instance *store.InstanceMessage, dbSchema *storepb.DatabaseSchemaMetadata) bool {
+func (s *Syncer) databaseBackupAvailable(ctx context.Context, instance *store.InstanceMessage, dbSchema *storepb.DatabaseSchemaMetadata) bool {
+	if !common.EngineSupportPriorBackup(instance.Metadata.GetEngine()) {
+		return false
+	}
 	switch instance.Metadata.GetEngine() {
 	case storepb.Engine_POSTGRES:
 		if dbSchema == nil {
 			return false
 		}
 		for _, schema := range dbSchema.Schemas {
-			if schema.GetName() == backupDatabaseName {
+			if schema.GetName() == common.BackupDatabaseNameOfEngine(storepb.Engine_POSTGRES) {
 				return true
 			}
 		}
 	case storepb.Engine_MYSQL, storepb.Engine_MSSQL, storepb.Engine_TIDB:
-		dbName := backupDatabaseName
+		dbName := common.BackupDatabaseNameOfEngine(instance.Metadata.GetEngine())
 		backupDB, err := s.store.GetDatabaseV2(ctx, &store.FindDatabaseMessage{
 			InstanceID:   &instance.ResourceID,
 			DatabaseName: &dbName,
@@ -611,7 +610,7 @@ func (s *Syncer) hasBackupSchema(ctx context.Context, instance *store.InstanceMe
 		}
 		return backupDB != nil
 	case storepb.Engine_ORACLE:
-		dbName := oracleBackupDatabaseName
+		dbName := common.BackupDatabaseNameOfEngine(storepb.Engine_ORACLE)
 		backupDB, err := s.store.GetDatabaseV2(ctx, &store.FindDatabaseMessage{
 			InstanceID:   &instance.ResourceID,
 			DatabaseName: &dbName,
