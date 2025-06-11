@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
 	"github.com/bytebase/bytebase/backend/store"
@@ -53,11 +52,6 @@ func NewManager(store *store.Store, licenseService enterprise.LicenseService) (*
 // CEL on the binding is not considered.
 // When multiple projects are specified, the user should have permission on every projects.
 func (m *Manager) CheckPermission(ctx context.Context, p Permission, user *store.UserMessage, projectIDs ...string) (bool, error) {
-	if m.licenseService.IsFeatureEnabled(base.FeatureRBAC) != nil {
-		// nolint
-		return true, nil
-	}
-
 	policyMessage, err := m.store.GetWorkspaceIamPolicy(ctx)
 	if err != nil {
 		return false, err

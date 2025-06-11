@@ -49,7 +49,6 @@
             >
               <template #icon>
                 <PlusIcon class="w-4 h-auto mr-1 text-gray-400" />
-                <FeatureBadge feature="bb.feature.schema-template" />
               </template>
               {{ $t("schema-editor.actions.add-from-template") }}
             </NButton>
@@ -183,40 +182,26 @@
       </div>
     </DrawerContent>
   </Drawer>
-  <FeatureModal
-    feature="bb.feature.schema-template"
-    :open="state.showFeatureModal"
-    @cancel="state.showFeatureModal = false"
-  />
 </template>
 
 <script lang="ts" setup>
-import { cloneDeep, head, pull } from "lodash-es";
-import { PlusIcon } from "lucide-vue-next";
-import { ArrowLeftIcon } from "lucide-vue-next";
-import { NButton } from "naive-ui";
-import { computed, reactive, ref } from "vue";
-import { useI18n } from "vue-i18n";
-import { FeatureBadge, FeatureModal } from "@/components/FeatureGuard";
 import { IndexIcon, TablePartitionIcon } from "@/components/Icon";
 import { Drawer, DrawerContent } from "@/components/v2";
-import { hasFeature, pushNotification } from "@/store/modules";
+import { pushNotification } from "@/store/modules";
 import type { ComposedDatabase } from "@/types";
 import {
   DatabaseCatalog,
   SchemaCatalog,
 } from "@/types/proto/v1/database_catalog_service";
 import {
-  DatabaseMetadata,
-  type ForeignKeyMetadata,
-  type SchemaMetadata,
-  type TableMetadata,
-} from "@/types/proto/v1/database_service";
-import {
   ColumnMetadata,
+  DatabaseMetadata,
   IndexMetadata,
   TablePartitionMetadata,
   TablePartitionMetadata_Type,
+  type ForeignKeyMetadata,
+  type SchemaMetadata,
+  type TableMetadata,
 } from "@/types/proto/v1/database_service";
 import type { SchemaTemplateSetting_FieldTemplate } from "@/types/proto/v1/setting_service";
 import {
@@ -225,6 +210,11 @@ import {
   randomString,
 } from "@/utils";
 import FieldTemplates from "@/views/SchemaTemplate/FieldTemplates.vue";
+import { cloneDeep, head, pull } from "lodash-es";
+import { ArrowLeftIcon, PlusIcon } from "lucide-vue-next";
+import { NButton } from "naive-ui";
+import { computed, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import EditColumnForeignKeyModal from "../Modals/EditColumnForeignKeyModal.vue";
 import { useSchemaEditorContext } from "../context";
 import {
@@ -412,10 +402,6 @@ const handleApplyColumnTemplate = (
   template: SchemaTemplateSetting_FieldTemplate
 ) => {
   state.showSchemaTemplateDrawer = false;
-  if (!hasFeature("bb.feature.schema-template")) {
-    state.showFeatureModal = true;
-    return;
-  }
   if (!template.column) {
     return;
   }

@@ -33,24 +33,25 @@ import { zindexable as vZindexable } from "vdirs";
 import { computed, nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { ErrorList } from "@/components/Plan/components/common";
+import {
+  ErrorList,
+  useSpecsValidation,
+} from "@/components/Plan/components/common";
 import {
   databaseEngineForSpec,
   getLocalSheetByName,
-  isValidSpec,
 } from "@/components/Plan/logic";
 import { usePlanContext } from "@/components/Plan/logic";
 import { planServiceClient } from "@/grpcweb";
-import { PROJECT_V1_ROUTE_REVIEW_CENTER_DETAIL } from "@/router/dashboard/projectV1";
+import { PROJECT_V1_ROUTE_PLAN_DETAIL } from "@/router/dashboard/projectV1";
 import { useCurrentProjectV1, useSheetV1Store } from "@/store";
 import { type Plan_ChangeDatabaseConfig } from "@/types/proto/v1/plan_service";
 import type { Sheet } from "@/types/proto/v1/sheet_service";
-import type { ComposedPlan } from "@/types/v1/issue/plan";
 import {
+  extractPlanUID,
   extractProjectResourceName,
   extractSheetUID,
   hasProjectPermissionV2,
-  planV1Slug,
 } from "@/utils";
 
 const { t } = useI18n();
@@ -60,6 +61,9 @@ const { plan } = usePlanContext();
 const sheetStore = useSheetV1Store();
 const loading = ref(false);
 
+// Use the validation hook for all specs
+const { isSpecEmpty } = useSpecsValidation(plan.value.specs);
+
 const planCreateErrorList = computed(() => {
   const errorList: string[] = [];
   if (!hasProjectPermissionV2(project.value, "bb.plans.create")) {
@@ -68,10 +72,9 @@ const planCreateErrorList = computed(() => {
   if (!plan.value.title.trim()) {
     errorList.push("Missing plan title");
   }
-  if (!(plan.value?.specs || []).every((spec) => isValidSpec(spec))) {
-    errorList.push("Missing SQL statement in some tasks");
+  if (plan.value.specs.some((spec) => isSpecEmpty(spec))) {
+    errorList.push("Missing statement");
   }
-
   return errorList;
 });
 
@@ -81,27 +84,22 @@ const doCreatePlan = async () => {
   try {
     await createSheets();
     const createdPlan = await planServiceClient.createPlan({
-      parent: plan.value.project,
+      parent: project.value.name,
       plan: plan.value,
     });
     if (!createdPlan) return;
 
-    const composedPlan: ComposedPlan = {
-      ...plan.value,
-      ...createdPlan,
-    };
-
     nextTick(() => {
       router.push({
-        name: PROJECT_V1_ROUTE_REVIEW_CENTER_DETAIL,
+        name: PROJECT_V1_ROUTE_PLAN_DETAIL,
         params: {
-          projectId: extractProjectResourceName(composedPlan.project),
-          planSlug: planV1Slug(composedPlan),
+          projectId: extractProjectResourceName(createdPlan.name),
+          planId: extractPlanUID(createdPlan.name),
         },
       });
     });
 
-    return composedPlan;
+    return createdPlan;
   } catch {
     loading.value = false;
   }
@@ -134,7 +132,7 @@ const createSheets = async () => {
     const sheet = pendingCreateSheetList[i];
     sheet.title = plan.value.title;
     const createdSheet = await sheetStore.createSheet(
-      plan.value.project,
+      project.value.name,
       sheet
     );
     sheetNameMap.set(sheet.name, createdSheet.name);

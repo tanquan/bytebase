@@ -8,14 +8,14 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/store"
+	v1pb "github.com/bytebase/bytebase/proto/generated-go/v1"
 )
 
 // validPlans is a string array of valid plan types.
-var validPlans = []base.PlanType{
-	base.TEAM,
-	base.ENTERPRISE,
+var validPlans = []v1pb.PlanType{
+	v1pb.PlanType_TEAM,
+	v1pb.PlanType_ENTERPRISE,
 }
 
 // License is the API message for enterprise license.
@@ -25,7 +25,7 @@ type License struct {
 	Seat          int
 	ExpiresTS     int64
 	IssuedTS      int64
-	Plan          base.PlanType
+	Plan          v1pb.PlanType
 	Trialing      bool
 	OrgName       string
 }
@@ -48,8 +48,8 @@ func (l *License) validPlanType() error {
 
 	return errors.Errorf("plan %q is not valid, expect %s or %s",
 		l.Plan.String(),
-		base.TEAM.String(),
-		base.ENTERPRISE.String(),
+		v1pb.PlanType_TEAM.String(),
+		v1pb.PlanType_ENTERPRISE.String(),
 	)
 }
 
@@ -65,11 +65,11 @@ type LicenseService interface {
 	// LoadSubscription will load subscription.
 	LoadSubscription(ctx context.Context) *Subscription
 	// IsFeatureEnabled returns whether a feature is enabled.
-	IsFeatureEnabled(feature base.FeatureType) error
+	IsFeatureEnabled(feature v1pb.PlanFeature) error
 	// IsFeatureEnabledForInstance returns whether a feature is enabled for the instance.
-	IsFeatureEnabledForInstance(feature base.FeatureType, instance *store.InstanceMessage) error
+	IsFeatureEnabledForInstance(feature v1pb.PlanFeature, instance *store.InstanceMessage) error
 	// GetEffectivePlan gets the effective plan.
-	GetEffectivePlan() base.PlanType
+	GetEffectivePlan() v1pb.PlanType
 	// GetPlanLimitValue gets the limit value for the plan.
 	GetPlanLimitValue(ctx context.Context, name PlanLimit) int
 	// GetInstanceLicenseCount returns the instance count limit for current subscription.

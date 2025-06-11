@@ -20,7 +20,7 @@
         <template #icon>
           <PlusIcon class="h-4 w-4" />
         </template>
-        <FeatureBadge :feature="'bb.feature.sso'" class="mr-1 text-white" />
+        <FeatureBadge :feature="PlanFeature.FEATURE_ENTERPRISE_SSO" class="mr-1 text-white" />
         {{ $t("settings.sso.create") }}
       </NButton>
     </div>
@@ -36,7 +36,7 @@
   </div>
 
   <FeatureModal
-    feature="bb.feature.sso"
+    :feature="PlanFeature.FEATURE_ENTERPRISE_SSO"
     :open="state.showFeatureModal"
     @cancel="state.showFeatureModal = false"
   />
@@ -58,6 +58,7 @@ import { featureToRef } from "@/store";
 import { useIdentityProviderStore } from "@/store/modules/idp";
 import { getSSOId } from "@/store/modules/v1/common";
 import type { IdentityProvider } from "@/types/proto/v1/idp_service";
+import { PlanFeature } from "@/types/proto/v1/subscription_service";
 import {
   hasWorkspacePermissionV2,
   identityProviderTypeToString,
@@ -84,7 +85,7 @@ const state = reactive<LocalState>({
   selectedIdentityProviderName: "",
 });
 const identityProviderStore = useIdentityProviderStore();
-const hasSSOFeature = featureToRef("bb.feature.sso");
+const hasSSOFeature = featureToRef(PlanFeature.FEATURE_ENTERPRISE_SSO);
 
 const identityProviderList = computed(() => {
   return identityProviderStore.identityProviderList;

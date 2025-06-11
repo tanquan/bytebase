@@ -11,7 +11,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/common/log"
 	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
@@ -200,16 +199,16 @@ func (s *IdentityProviderService) DeleteIdentityProvider(ctx context.Context, re
 }
 
 func (s *IdentityProviderService) checkFeatureAvailable(ssoType v1pb.IdentityProviderType) error {
-	if err := s.licenseService.IsFeatureEnabled(base.FeatureSSO); err != nil {
+	if err := s.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_ENTERPRISE_SSO); err != nil {
 		return status.Error(codes.PermissionDenied, err.Error())
 	}
 	plan := s.licenseService.GetEffectivePlan()
 	switch plan {
-	case base.FREE:
+	case v1pb.PlanType_FREE:
 		return status.Error(codes.PermissionDenied, "feature is not available for free plan")
-	case base.ENTERPRISE:
+	case v1pb.PlanType_ENTERPRISE:
 		return nil
-	case base.TEAM:
+	case v1pb.PlanType_TEAM:
 		if ssoType != v1pb.IdentityProviderType_OAUTH2 {
 			return status.Error(codes.PermissionDenied, "only oauth type is available")
 		}

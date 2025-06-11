@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"unicode"
 
@@ -20,7 +19,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/component/config"
 	"github.com/bytebase/bytebase/backend/component/iam"
@@ -915,18 +913,33 @@ func convertToChangedResources(r *storepb.ChangedResources) *v1pb.ChangedResourc
 					Ranges: ranges,
 				})
 			}
-			sort.Slice(v1Schema.Tables, func(i, j int) bool {
-				return v1Schema.Tables[i].Name < v1Schema.Tables[j].Name
+			slices.SortFunc(v1Schema.Tables, func(a, b *v1pb.ChangedResourceTable) int {
+				if a.Name < b.Name {
+					return -1
+				} else if a.Name > b.Name {
+					return 1
+				}
+				return 0
 			})
 			v1Database.Schemas = append(v1Database.Schemas, v1Schema)
 		}
-		sort.Slice(v1Database.Schemas, func(i, j int) bool {
-			return v1Database.Schemas[i].Name < v1Database.Schemas[j].Name
+		slices.SortFunc(v1Database.Schemas, func(a, b *v1pb.ChangedResourceSchema) int {
+			if a.Name < b.Name {
+				return -1
+			} else if a.Name > b.Name {
+				return 1
+			}
+			return 0
 		})
 		result.Databases = append(result.Databases, v1Database)
 	}
-	sort.Slice(result.Databases, func(i, j int) bool {
-		return result.Databases[i].Name < result.Databases[j].Name
+	slices.SortFunc(result.Databases, func(a, b *v1pb.ChangedResourceDatabase) int {
+		if a.Name < b.Name {
+			return -1
+		} else if a.Name > b.Name {
+			return 1
+		}
+		return 0
 	})
 	return result
 }
@@ -966,7 +979,7 @@ func (s *DatabaseService) UpdateSecret(ctx context.Context, request *v1pb.Update
 		return nil, status.Errorf(codes.NotFound, "instance %q not found", instanceID)
 	}
 
-	if err := s.licenseService.IsFeatureEnabledForInstance(base.FeatureEncryptedSecrets, instance); err != nil {
+	if err := s.licenseService.IsFeatureEnabledForInstance(v1pb.PlanFeature_FEATURE_DATABASE_SECRET_VARIABLES, instance); err != nil {
 		return nil, status.Error(codes.PermissionDenied, err.Error())
 	}
 
@@ -1056,7 +1069,7 @@ func (s *DatabaseService) DeleteSecret(ctx context.Context, request *v1pb.Delete
 		return nil, status.Errorf(codes.NotFound, "instance %q not found", instanceID)
 	}
 
-	if err := s.licenseService.IsFeatureEnabledForInstance(base.FeatureEncryptedSecrets, instance); err != nil {
+	if err := s.licenseService.IsFeatureEnabledForInstance(v1pb.PlanFeature_FEATURE_DATABASE_SECRET_VARIABLES, instance); err != nil {
 		return nil, status.Error(codes.PermissionDenied, err.Error())
 	}
 

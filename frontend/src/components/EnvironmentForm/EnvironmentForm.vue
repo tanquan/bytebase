@@ -9,16 +9,17 @@
 </template>
 
 <script lang="ts" setup>
-import { useEventListener } from "@vueuse/core";
-import { toRef } from "vue";
-import { useI18n } from "vue-i18n";
-import { onBeforeRouteLeave } from "vue-router";
 import { useEmitteryEventListener } from "@/composables/useEmitteryEventListener";
 import { hasFeature } from "@/store";
 import { VirtualRoleType } from "@/types";
 import type { Policy } from "@/types/proto/v1/org_policy_service";
 import { PolicyType } from "@/types/proto/v1/org_policy_service";
+import { PlanFeature } from "@/types/proto/v1/subscription_service";
 import type { Environment } from "@/types/v1/environment";
+import { useEventListener } from "@vueuse/core";
+import { toRef } from "vue";
+import { useI18n } from "vue-i18n";
+import { onBeforeRouteLeave } from "vue-router";
 import { FeatureModal } from "../FeatureGuard";
 import { provideEnvironmentFormContext } from "./context";
 
@@ -82,22 +83,18 @@ onBeforeRouteLeave((to, from, next) => {
 useEmitteryEventListener(events, "create", (params) => {
   const { rolloutPolicy, environment } = params;
   if (environment.tags?.protected === "protected") {
-    if (!hasFeature("bb.feature.environment-tier-policy")) {
-      missingFeature.value = "bb.feature.environment-tier-policy";
+    if (!hasFeature(PlanFeature.FEATURE_ENVIRONMENT_TIERS)) {
+      missingFeature.value = PlanFeature.FEATURE_ENVIRONMENT_TIERS;
       return;
     }
   }
   const rp = rolloutPolicy.rolloutPolicy;
   if (rp?.automatic === false) {
     if (rp.issueRoles.includes(VirtualRoleType.LAST_APPROVER)) {
-      if (!hasFeature("bb.feature.custom-approval")) {
-        missingFeature.value = "bb.feature.custom-approval";
+      if (!hasFeature(PlanFeature.FEATURE_APPROVAL_WORKFLOW)) {
+        missingFeature.value = PlanFeature.FEATURE_APPROVAL_WORKFLOW;
         return;
       }
-    }
-    if (!hasFeature("bb.feature.rollout-policy")) {
-      missingFeature.value = "bb.feature.rollout-policy";
-      return;
     }
   }
 
@@ -106,9 +103,9 @@ useEmitteryEventListener(events, "create", (params) => {
 useEmitteryEventListener(events, "update", (environment) => {
   if (
     environment.tags.protected === "protected" &&
-    !hasFeature("bb.feature.environment-tier-policy")
+    !hasFeature(PlanFeature.FEATURE_ENVIRONMENT_TIERS)
   ) {
-    missingFeature.value = "bb.feature.environment-tier-policy";
+    missingFeature.value = PlanFeature.FEATURE_ENVIRONMENT_TIERS;
     return;
   }
 
@@ -120,14 +117,10 @@ useEmitteryEventListener(events, "update-policy", (params) => {
     const rp = policy.rolloutPolicy;
     if (rp?.automatic === false) {
       if (rp.issueRoles.includes(VirtualRoleType.LAST_APPROVER)) {
-        if (!hasFeature("bb.feature.custom-approval")) {
-          missingFeature.value = "bb.feature.custom-approval";
+        if (!hasFeature(PlanFeature.FEATURE_APPROVAL_WORKFLOW)) {
+          missingFeature.value = PlanFeature.FEATURE_APPROVAL_WORKFLOW;
           return;
         }
-      }
-      if (!hasFeature("bb.feature.rollout-policy")) {
-        missingFeature.value = "bb.feature.rollout-policy";
-        return;
       }
     }
   }

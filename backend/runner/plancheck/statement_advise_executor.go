@@ -12,7 +12,6 @@ import (
 	"github.com/bytebase/bytebase/backend/component/dbfactory"
 	"github.com/bytebase/bytebase/backend/component/sheet"
 
-	"github.com/bytebase/bytebase/backend/base"
 	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
 	"github.com/bytebase/bytebase/backend/plugin/advisor"
 	"github.com/bytebase/bytebase/backend/plugin/advisor/catalog"
@@ -50,22 +49,6 @@ type StatementAdviseExecutor struct {
 func (e *StatementAdviseExecutor) Run(ctx context.Context, config *storepb.PlanCheckRunConfig) ([]*storepb.PlanCheckRunResult_Result, error) {
 	if config.ChangeDatabaseType == storepb.PlanCheckRunConfig_CHANGE_DATABASE_TYPE_UNSPECIFIED {
 		return nil, errors.Errorf("change database type is unspecified")
-	}
-	if err := e.licenseService.IsFeatureEnabled(base.FeatureSQLReview); err != nil {
-		// nolint:nilerr
-		return []*storepb.PlanCheckRunResult_Result{
-			{
-				Status:  storepb.PlanCheckRunResult_Result_WARNING,
-				Code:    advisor.Unsupported.Int32(),
-				Title:   "SQL review is disabled",
-				Content: err.Error(),
-				Report: &storepb.PlanCheckRunResult_Result_SqlReviewReport_{
-					SqlReviewReport: &storepb.PlanCheckRunResult_Result_SqlReviewReport{
-						Line: 0,
-					},
-				},
-			},
-		}, nil
 	}
 
 	sheetUID := int(config.SheetUid)

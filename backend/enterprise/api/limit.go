@@ -2,10 +2,12 @@ package api
 
 import (
 	_ "embed"
+	"encoding/json"
 
+	"google.golang.org/protobuf/encoding/protojson"
 	"gopkg.in/yaml.v3"
 
-	"github.com/bytebase/bytebase/backend/base"
+	v1pb "github.com/bytebase/bytebase/proto/generated-go/v1"
 )
 
 //go:embed plan.yaml
@@ -22,27 +24,41 @@ const (
 )
 
 // PlanLimitValues is the plan limit value mapping.
-var PlanLimitValues = map[PlanLimit]map[base.PlanType]int{
+var PlanLimitValues = map[PlanLimit]map[v1pb.PlanType]int{
 	PlanLimitMaximumInstance: {},
 	PlanLimitMaximumUser:     {},
 }
 
-type planLimitConfig struct {
-	Type                 base.PlanType `yaml:"type"`
-	MaximumInstanceCount int           `yaml:"maximumInstanceCount"`
-	MaximumSeatCount     int           `yaml:"maximumSeatCount"`
-}
-
-type planConfg struct {
-	PlanList []*planLimitConfig `yaml:"planList"`
-}
+// PlanFeatureMatrix maps plans to their available features
+var PlanFeatureMatrix = make(map[v1pb.PlanType]map[v1pb.PlanFeature]bool)
 
 func init() {
-	conf := &planConfg{}
-	_ = yaml.Unmarshal([]byte(planConfigStr), conf)
+	// First unmarshal YAML to a generic map, then convert to JSON for protojson
+	var yamlData map[string]any
+	if err := yaml.Unmarshal([]byte(planConfigStr), &yamlData); err != nil {
+		panic("failed to unmarshal plan.yaml: " + err.Error())
+	}
 
-	for _, limitConfig := range conf.PlanList {
-		PlanLimitValues[PlanLimitMaximumInstance][limitConfig.Type] = limitConfig.MaximumInstanceCount
-		PlanLimitValues[PlanLimitMaximumUser][limitConfig.Type] = limitConfig.MaximumSeatCount
+	// Convert YAML data to JSON bytes
+	jsonBytes, err := json.Marshal(yamlData)
+	if err != nil {
+		panic("failed to convert plan.yaml to JSON: " + err.Error())
+	}
+
+	conf := &v1pb.PlanConfig{}
+	//nolint:forbidigo
+	if err := protojson.Unmarshal(jsonBytes, conf); err != nil {
+		panic("failed to unmarshal plan config proto: " + err.Error())
+	}
+
+	for _, plan := range conf.Plans {
+		PlanLimitValues[PlanLimitMaximumInstance][plan.Type] = int(plan.MaximumInstanceCount)
+		PlanLimitValues[PlanLimitMaximumUser][plan.Type] = int(plan.MaximumSeatCount)
+
+		// Initialize feature map for this plan
+		PlanFeatureMatrix[plan.Type] = make(map[v1pb.PlanFeature]bool)
+		for _, feature := range plan.Features {
+			PlanFeatureMatrix[plan.Type][feature] = true
+		}
 	}
 }

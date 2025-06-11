@@ -4,8 +4,8 @@ import type { LocationQuery } from "vue-router";
 import { useRoute, useRouter } from "vue-router";
 import { usePlanStore } from "@/store/modules/v1/plan";
 import { EMPTY_ID, UNKNOWN_ID } from "@/types";
-import { emptyPlan, type ComposedPlan } from "@/types/v1/issue/plan";
-import { uidFromSlug } from "@/utils";
+import type { Plan, PlanCheckRun } from "@/types/proto/v1/plan_service";
+import { emptyPlan } from "@/types/v1/issue/plan";
 import { createPlanSkeleton } from "./create";
 
 export * from "./create";
@@ -13,17 +13,17 @@ export * from "./create";
 export * from "./util";
 
 export function useInitializePlan(
-  planSlug: MaybeRef<string>,
+  planId: MaybeRef<string>,
   project: MaybeRef<string> = "-",
   redirectNotFound: boolean = true
 ) {
   const isCreating = computed(() => {
-    return unref(planSlug).toLowerCase() === "create";
+    return unref(planId).toLowerCase() === "create";
   });
   const uid = computed(() => {
-    const slug = unref(planSlug);
-    if (slug.toLowerCase() === "create") return String(EMPTY_ID);
-    const uid = Number(uidFromSlug(slug));
+    const id = unref(planId);
+    if (id.toLowerCase() === "create") return String(EMPTY_ID);
+    const uid = Number(id);
     if (uid > 0) return String(uid);
     return String(UNKNOWN_ID);
   });
@@ -32,7 +32,8 @@ export function useInitializePlan(
   const planStore = usePlanStore();
   const isInitializing = ref(false);
 
-  const plan = ref<ComposedPlan>(emptyPlan());
+  const plan = ref<Plan>(emptyPlan());
+  const planCheckRunList = ref<PlanCheckRun[]>([]);
 
   const runner = async (uid: string, project: string, url: string) => {
     const plan =
@@ -57,19 +58,24 @@ export function useInitializePlan(
       }
       const url = route.fullPath;
       isInitializing.value = true;
-      runner(uid, project, url).then((result) => {
+      runner(uid, project, url).then(async (result) => {
         if (result.url !== route.fullPath) {
           // the url changed, drop the outdated result
           return;
         }
         plan.value = result.plan;
+        // Fetch plan check runs if not creating
+        if (uid !== String(EMPTY_ID)) {
+          const { fetchPlanCheckRuns } = usePlanStore();
+          planCheckRunList.value = await fetchPlanCheckRuns(result.plan);
+        }
         isInitializing.value = false;
       });
     },
     { immediate: true }
   );
 
-  return { isCreating, plan, isInitializing };
+  return { isCreating, plan, planCheckRunList, isInitializing };
 }
 
 export const convertRouterQuery = (query: LocationQuery) => {

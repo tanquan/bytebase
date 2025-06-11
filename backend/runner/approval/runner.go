@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,7 +17,6 @@ import (
 	celtypes "github.com/google/cel-go/common/types"
 
 	apiv1 "github.com/bytebase/bytebase/backend/api/v1"
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/common/log"
 	"github.com/bytebase/bytebase/backend/component/dbfactory"
@@ -28,6 +27,7 @@ import (
 	"github.com/bytebase/bytebase/backend/store"
 	"github.com/bytebase/bytebase/backend/utils"
 	storepb "github.com/bytebase/bytebase/proto/generated-go/store"
+	v1pb "github.com/bytebase/bytebase/proto/generated-go/v1"
 )
 
 // Runner is the runner for finding approval templates for issues.
@@ -137,7 +137,7 @@ func (r *Runner) findApprovalTemplateForIssue(ctx context.Context, issue *store.
 		// no need to find if
 		// - feature is not enabled
 		// - approval setting rules are empty
-		if r.licenseService.IsFeatureEnabled(base.FeatureCustomApproval) != nil || len(approvalSetting.Rules) == 0 {
+		if r.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_APPROVAL_WORKFLOW) != nil || len(approvalSetting.Rules) == 0 {
 			// nolint:nilerr
 			return nil, 0, true, nil
 		}
@@ -313,8 +313,13 @@ func getApprovalTemplate(approvalSetting *storepb.WorkspaceApprovalSetting, risk
 
 func (r *Runner) getIssueRisk(ctx context.Context, issue *store.IssueMessage, risks []*store.RiskMessage) (int32, store.RiskSource, bool, error) {
 	// sort by level DESC, higher risks go first.
-	sort.Slice(risks, func(i, j int) bool {
-		return risks[i].Level > risks[j].Level
+	slices.SortFunc(risks, func(a, b *store.RiskMessage) int {
+		if a.Level > b.Level {
+			return -1
+		} else if a.Level < b.Level {
+			return 1
+		}
+		return 0
 	})
 
 	switch issue.Type {
@@ -630,7 +635,7 @@ func (r *Runner) getGrantRequestIssueRisk(ctx context.Context, issue *store.Issu
 		expirationDays = payload.GrantRequest.Expiration.AsDuration().Hours() / 24
 	}
 
-	databaseInstanceMap, databaseMap, err := r.getDatabaseMap(ctx, factors.Databases)
+	databaseMap, err := r.getDatabaseMap(ctx, factors.Databases)
 	if err != nil {
 		return 0, store.RiskSourceUnknown, false, errors.Wrap(err, "failed to retrieve database map")
 	}
@@ -664,29 +669,28 @@ func (r *Runner) getGrantRequestIssueRisk(ctx context.Context, issue *store.Issu
 			"role":            payload.GrantRequest.Role,
 		}
 		if len(factors.Databases) == 0 {
-			vars, err := e.PartialVars(args)
+			environments, err := r.store.GetEnvironmentSetting(ctx)
 			if err != nil {
 				return 0, store.RiskSourceUnknown, false, err
 			}
-			out, _, err := prg.Eval(vars)
-			if err != nil {
-				return 0, store.RiskSourceUnknown, false, err
-			}
-			if res, ok := out.Equal(celtypes.True).Value().(bool); ok && res {
-				return risk.Level, store.RiskRequestRole, true, nil
+			for _, environment := range environments.GetEnvironments() {
+				args["environment_id"] = environment.Id
+				vars, err := e.PartialVars(args)
+				if err != nil {
+					return 0, store.RiskSourceUnknown, false, err
+				}
+				out, _, err := prg.Eval(vars)
+				if err != nil {
+					return 0, store.RiskSourceUnknown, false, err
+				}
+				if res, ok := out.Equal(celtypes.True).Value().(bool); ok && res {
+					return risk.Level, store.RiskRequestRole, true, nil
+				}
 			}
 		}
 
-		for key, database := range databaseMap {
-			// TODO: how do we handle not found database and instance?
-			instance, ok := databaseInstanceMap[key]
-			if !ok {
-				continue
-			}
-
+		for _, database := range databaseMap {
 			args["environment_id"] = database.EffectiveEnvironmentID
-			args["db_engine"] = instance.Metadata.GetEngine().String()
-			args["database_name"] = database.DatabaseName
 			vars, err := e.PartialVars(args)
 			if err != nil {
 				return 0, store.RiskSourceUnknown, false, err
@@ -704,17 +708,16 @@ func (r *Runner) getGrantRequestIssueRisk(ctx context.Context, issue *store.Issu
 	return 0, store.RiskRequestRole, true, nil
 }
 
-func (r *Runner) getDatabaseMap(ctx context.Context, databases []string) (map[string]*store.InstanceMessage, map[string]*store.DatabaseMessage, error) {
-	databaseInstanceMap := make(map[string]*store.InstanceMessage)
+func (r *Runner) getDatabaseMap(ctx context.Context, databases []string) (map[string]*store.DatabaseMessage, error) {
 	databaseMap := make(map[string]*store.DatabaseMessage)
 	for _, database := range databases {
 		instanceID, databaseName, err := common.GetInstanceDatabaseID(database)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		instance, err := r.store.GetInstanceV2(ctx, &store.FindInstanceMessage{ResourceID: &instanceID})
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if instance == nil || instance.Deleted {
 			continue
@@ -725,15 +728,14 @@ func (r *Runner) getDatabaseMap(ctx context.Context, databases []string) (map[st
 			IsCaseSensitive: store.IsObjectCaseSensitive(instance),
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if db == nil {
 			continue
 		}
-		databaseInstanceMap[database] = instance
 		databaseMap[database] = db
 	}
-	return databaseInstanceMap, databaseMap, nil
+	return databaseMap, nil
 }
 
 func getRiskSourceFromPlan(config *storepb.PlanConfig) store.RiskSource {

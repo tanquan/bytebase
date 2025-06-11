@@ -1,20 +1,27 @@
-import dayjs from "dayjs";
-import { defineStore } from "pinia";
-import type { Ref } from "vue";
-import { computed } from "vue";
 import { subscriptionServiceClient } from "@/grpcweb";
-import type { FeatureType } from "@/types";
-import { PLANS, getDateForPbTimestamp, instanceLimitFeature } from "@/types";
+import {
+  PLANS,
+  hasFeature as checkFeature,
+  hasInstanceFeature as checkInstanceFeature,
+  getDateForPbTimestamp,
+  getMinimumRequiredPlan,
+  instanceLimitFeature
+} from "@/types";
 import type {
   Instance,
   InstanceResource,
 } from "@/types/proto/v1/instance_service";
 import type { Subscription } from "@/types/proto/v1/subscription_service";
 import {
+  PlanFeature,
   PlanType,
   planTypeFromJSON,
   planTypeToNumber,
 } from "@/types/proto/v1/subscription_service";
+import dayjs from "dayjs";
+import { defineStore } from "pinia";
+import type { Ref } from "vue";
+import { computed } from "vue";
 
 // The threshold of days before the license expiration date to show the warning.
 // Default is 7 days.
@@ -23,14 +30,12 @@ export const LICENSE_EXPIRATION_THRESHOLD = 7;
 interface SubscriptionState {
   subscription: Subscription | undefined;
   trialingDays: number;
-  featureMatrix: Map<FeatureType, boolean[]>;
 }
 
 export const useSubscriptionV1Store = defineStore("subscription_v1", {
   state: (): SubscriptionState => ({
     subscription: undefined,
     trialingDays: 14,
-    featureMatrix: new Map<FeatureType, boolean[]>(),
   }),
   getters: {
     instanceCountLimit(): number {
@@ -144,21 +149,14 @@ export const useSubscriptionV1Store = defineStore("subscription_v1", {
       );
       return daysBeforeExpire / total < 0.5;
     },
-    canTrial(state): boolean {
+    showTrial(state): boolean {
       if (!this.isSelfHostLicense) {
         return false;
       }
       if (!state.subscription || this.isFreePlan) {
         return true;
       }
-      return this.canUpgradeTrial;
-    },
-    canUpgradeTrial(): boolean {
-      return (
-        this.isSelfHostLicense &&
-        this.isTrialing &&
-        this.currentPlan < PlanType.ENTERPRISE
-      );
+      return false;
     },
     isSelfHostLicense(): boolean {
       return import.meta.env.MODE.toLowerCase() !== "release-aws";
@@ -171,55 +169,47 @@ export const useSubscriptionV1Store = defineStore("subscription_v1", {
     setSubscription(subscription: Subscription) {
       this.subscription = subscription;
     },
-    hasFeature(type: FeatureType) {
-      const matrix = this.featureMatrix.get(type);
-      if (!Array.isArray(matrix)) {
+    hasFeature(feature: PlanFeature) {
+      if (this.isExpired) {
         return false;
       }
-
-      return !this.isExpired && matrix[planTypeToNumber(this.currentPlan) - 1];
+      return checkFeature(this.currentPlan, feature);
     },
     hasInstanceFeature(
-      type: FeatureType,
+      feature: PlanFeature,
       instance: Instance | InstanceResource | undefined = undefined
     ) {
-      // DONOT check instance license fo FREE plan.
+      // For FREE plan, don't check instance activation
       if (this.currentPlan === PlanType.FREE) {
-        return this.hasFeature(type);
+        return this.hasFeature(feature);
       }
-      if (!instanceLimitFeature.has(type) || !instance) {
-        return this.hasFeature(type);
+      
+      // If no instance provided or feature is not instance-limited
+      if (!instance || !instanceLimitFeature.has(feature)) {
+        return this.hasFeature(feature);
       }
-      return this.hasFeature(type) && instance.activation;
+      
+      return checkInstanceFeature(this.currentPlan, feature, instance.activation);
     },
     instanceMissingLicense(
-      type: FeatureType,
+      feature: PlanFeature,
       instance: Instance | InstanceResource | undefined = undefined
     ) {
-      // TODO(ed) refresh instance before check license:
-      if (!instanceLimitFeature.has(type)) {
+      // Only relevant for instance-limited features
+      if (!instanceLimitFeature.has(feature)) {
         return false;
       }
       if (!instance) {
         return false;
       }
-      return hasFeature(type) && !instance.activation;
+      // Feature is available in plan but instance is not activated
+      return this.hasFeature(feature) && !instance.activation;
     },
     currentPlanGTE(plan: PlanType): boolean {
       return planTypeToNumber(this.currentPlan) >= planTypeToNumber(plan);
     },
-    getMinimumRequiredPlan(type: FeatureType): PlanType {
-      const matrix = this.featureMatrix.get(type);
-      if (!Array.isArray(matrix)) {
-        return PlanType.FREE;
-      }
-
-      for (let i = 0; i < matrix.length; i++) {
-        if (matrix[i]) {
-          return planTypeFromJSON(i + 1) as PlanType;
-        }
-      }
-      return PlanType.FREE;
+    getMinimumRequiredPlan(feature: PlanFeature): PlanType {
+      return getMinimumRequiredPlan(feature);
     },
     async fetchSubscription() {
       try {
@@ -241,42 +231,20 @@ export const useSubscriptionV1Store = defineStore("subscription_v1", {
       this.setSubscription(subscription);
       return subscription;
     },
-    async fetchFeatureMatrix() {
-      try {
-        const featureMatrix = await subscriptionServiceClient.getFeatureMatrix(
-          {}
-        );
-
-        const stateMatrix = new Map<FeatureType, boolean[]>();
-        for (const feature of featureMatrix.features) {
-          const featureType = feature.name as FeatureType;
-          stateMatrix.set(
-            featureType,
-            [PlanType.FREE, PlanType.TEAM, PlanType.ENTERPRISE].map((type) => {
-              return feature.matrix[type] ?? false;
-            })
-          );
-        }
-
-        this.featureMatrix = stateMatrix;
-      } catch (e) {
-        console.error(e);
-      }
-    },
   },
 });
 
-export const hasFeature = (type: FeatureType) => {
+export const hasFeature = (feature: PlanFeature) => {
   const store = useSubscriptionV1Store();
-  return store.hasFeature(type);
+  return store.hasFeature(feature);
 };
 
 export const featureToRef = (
-  type: FeatureType,
+  feature: PlanFeature,
   instance: Instance | InstanceResource | undefined = undefined
 ): Ref<boolean> => {
   const store = useSubscriptionV1Store();
-  return computed(() => store.hasInstanceFeature(type, instance));
+  return computed(() => store.hasInstanceFeature(feature, instance));
 };
 
 export const useCurrentPlan = () => {

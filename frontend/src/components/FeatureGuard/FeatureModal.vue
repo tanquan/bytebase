@@ -27,42 +27,9 @@
             v-if="instanceMissingLicense"
             keypath="subscription.instance-assignment.missing-license-attention"
           />
-          <template v-else-if="subscriptionStore.canTrial">
-            <i18n-t
-              v-if="isRequiredInPlan"
-              keypath="subscription.required-plan-with-trial"
-            >
-              <template #requiredPlan>
-                <span class="font-bold text-accent">
-                  {{
-                    $t(
-                      `subscription.plan.${planTypeToString(
-                        requiredPlan
-                      )}.title`
-                    )
-                  }}
-                </span>
-              </template>
-              <template v-if="!hasPermission" #startTrial>
-                {{ $t("subscription.contact-to-upgrade") }}
-              </template>
-              <template v-else #startTrial>
-                {{
-                  $t("subscription.trial-for-days", {
-                    days: subscriptionStore.trialingDays,
-                  })
-                }}
-              </template>
-            </i18n-t>
-            <i18n-t v-else keypath="subscription.trial-for-days">
-              <template #days>
-                {{ subscriptionStore.trialingDays }}
-              </template>
-            </i18n-t>
-          </template>
           <i18n-t
             v-else-if="requiredPlan !== PlanType.FREE"
-            keypath="subscription.require-subscription"
+            keypath="subscription.required-plan-with-trial"
           >
             <template #requiredPlan>
               <span class="font-bold text-accent">
@@ -72,6 +39,21 @@
                   )
                 }}
               </span>
+            </template>
+            <template v-if="!hasPermission" #startTrial>
+              {{ $t("subscription.contact-to-upgrade") }}
+            </template>
+            <template v-else #startTrial>
+              {{
+                $t("subscription.trial-for-days", {
+                  days: subscriptionStore.trialingDays,
+                })
+              }}
+            </template>
+          </i18n-t>
+          <i18n-t v-else keypath="subscription.trial-for-days">
+            <template #days>
+              {{ subscriptionStore.trialingDays }}
             </template>
           </i18n-t>
         </p>
@@ -84,7 +66,7 @@
         >
           {{ $t("common.ok") }}
         </NButton>
-        <template v-else-if="subscriptionStore.canTrial">
+        <template v-else-if="subscriptionStore.showTrial">
           <NButton type="primary" @click.prevent="trialSubscription">
             {{
               $t("subscription.request-n-days-trial", {
@@ -115,22 +97,23 @@
 </template>
 
 <script lang="ts" setup>
-import { NButton } from "naive-ui";
-import type { PropType } from "vue";
-import { computed, reactive } from "vue";
-import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
 import { BBModal } from "@/bbkit";
 import { useLanguage } from "@/composables/useLanguage";
 import { useSubscriptionV1Store } from "@/store";
-import type { FeatureType } from "@/types";
-import { planTypeToString, ENTERPRISE_INQUIRE_LINK } from "@/types";
+import { ENTERPRISE_INQUIRE_LINK, planTypeToString } from "@/types";
 import type {
   Instance,
   InstanceResource,
 } from "@/types/proto/v1/instance_service";
-import { PlanType } from "@/types/proto/v1/subscription_service";
+import {
+  PlanFeature,
+  PlanType,
+} from "@/types/proto/v1/subscription_service";
 import { autoSubscriptionRoute, hasWorkspacePermissionV2 } from "@/utils";
+import { NButton } from "naive-ui";
+import { computed, reactive } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import InstanceAssignment from "../InstanceAssignment.vue";
 import WeChatQRModal from "../WeChatQRModal.vue";
 
@@ -139,21 +122,17 @@ interface LocalState {
   showQRCodeModal: boolean;
 }
 
-const props = defineProps({
-  open: {
-    required: true,
-    type: Boolean,
-  },
-  feature: {
-    required: true,
-    type: String as PropType<FeatureType>,
-    default: "",
-  },
-  instance: {
-    type: Object as PropType<Instance | InstanceResource>,
-    default: undefined,
-  },
-});
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    feature?: PlanFeature;
+    instance?: Instance | InstanceResource;
+  }>(),
+  {
+    feature: PlanFeature.FEATURE_UNSPECIFIED,
+    instance: undefined,
+  }
+);
 
 const state = reactive<LocalState>({
   showInstanceAssignmentDrawer: false,
@@ -191,10 +170,9 @@ const ok = () => {
   emit("cancel");
 };
 
-const isRequiredInPlan = Array.isArray(
-  subscriptionStore.featureMatrix.get(props.feature)
+const requiredPlan = computed(() =>
+  subscriptionStore.getMinimumRequiredPlan(props.feature)
 );
-const requiredPlan = subscriptionStore.getMinimumRequiredPlan(props.feature);
 
 const featureKey = computed(() => {
   return props.feature.split(".").join("-");

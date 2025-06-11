@@ -13,6 +13,7 @@ import {
   useSQLEditorTabStore,
   useAppFeature,
 } from "@/store";
+import { PlanFeature } from "@/types/proto/v1/subscription_service";
 import authRoutes, {
   AUTH_2FA_SETUP_MODULE,
   AUTH_MFA_MODULE,
@@ -162,7 +163,7 @@ router.beforeEach((to, from, next) => {
   const currentUserV1 = useCurrentUserV1();
 
   // If 2FA is required, redirect to MFA setup page if the user has not enabled 2FA.
-  if (hasFeature("bb.feature.2fa") && actuatorStore.serverInfo?.require2fa) {
+  if (hasFeature(PlanFeature.FEATURE_TWO_FA) && actuatorStore.serverInfo?.require2fa) {
     const user = currentUserV1.value;
     if (user && !user.mfaEnabled) {
       next({
@@ -246,9 +247,6 @@ useTitle(title);
 router.afterEach((to /*, from */) => {
   // Needs to use nextTick otherwise title will still be the one from the previous route.
   nextTick(() => {
-    if (to.meta.overrideTitle) {
-      return;
-    }
     if (to.meta.title) {
       document.title = to.meta.title(to);
     } else {

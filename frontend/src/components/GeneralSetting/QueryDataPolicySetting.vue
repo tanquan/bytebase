@@ -4,7 +4,7 @@
       <span class="mr-2">
         {{ $t("settings.general.workspace.query-data-policy.timeout.self") }}
       </span>
-      <FeatureBadge feature="bb.feature.access-control" />
+      <FeatureBadge :feature="PlanFeature.FEATURE_QUERY_DATASOURCE_RESTRICTION" />
     </p>
     <p class="text-sm text-gray-400 mt-1">
       {{
@@ -32,8 +32,6 @@
 </template>
 
 <script lang="ts" setup>
-import { NInputNumber } from "naive-ui";
-import { ref, computed } from "vue";
 import {
   featureToRef,
   usePolicyByParentAndType,
@@ -44,11 +42,14 @@ import {
   PolicyResourceType,
   PolicyType,
 } from "@/types/proto/v1/org_policy_service";
+import { PlanFeature } from "@/types/proto/v1/subscription_service";
 import { hasWorkspacePermissionV2 } from "@/utils";
+import { NInputNumber } from "naive-ui";
+import { computed, ref } from "vue";
 import { FeatureBadge } from "../FeatureGuard";
 
 const policyV1Store = usePolicyV1Store();
-const hasAccessControlFeature = featureToRef("bb.feature.access-control");
+const hasQueryPolicyFeature = featureToRef(PlanFeature.FEATURE_QUERY_POLICY);
 
 const { policy: queryDataPolicy } = usePolicyByParentAndType(
   computed(() => ({
@@ -60,7 +61,7 @@ const { policy: queryDataPolicy } = usePolicyByParentAndType(
 const allowEdit = computed(
   () =>
     hasWorkspacePermissionV2("bb.policies.update") &&
-    hasAccessControlFeature.value
+    hasQueryPolicyFeature.value
 );
 
 const initialState = () => {

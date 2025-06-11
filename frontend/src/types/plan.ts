@@ -1,71 +1,19 @@
 import {
   PlanType,
-  planTypeFromJSON,
+  type PlanConfig,
+  type PlanLimitConfig,
+  PlanFeature,
 } from "@/types/proto/v1/subscription_service";
 import planData from "./plan.yaml";
 
-// Check api/plan.go to understand what each feature means.
-export type FeatureType =
-  // General
-  | "bb.feature.custom-role"
-  // Admin & Security
-  | "bb.feature.sso"
-  | "bb.feature.2fa"
-  | "bb.feature.secure-token"
-  | "bb.feature.password-restriction"
-  | "bb.feature.rbac"
-  | "bb.feature.disallow-signup"
-  | "bb.feature.disallow-password-signin"
-  | "bb.feature.domain-restriction"
-  | "bb.feature.watermark"
-  | "bb.feature.audit-log"
-  | "bb.feature.issue-advanced-search"
-  | "bb.feature.announcement"
-  | "bb.feature.external-secret-manager"
-  | "bb.feature.directory-sync"
-  // Branding
-  | "bb.feature.branding"
-  // Change Workflow
-  | "bb.feature.dba-workflow"
-  | "bb.feature.schema-drift"
-  | "bb.feature.sql-review"
-  | "bb.feature.encrypted-secrets"
-  | "bb.feature.database-grouping"
-  | "bb.feature.schema-template"
-  | "bb.feature.issue-project-setting"
-  // Database management
-  | "bb.feature.read-replica-connection"
-  | "bb.feature.custom-instance-synchronization"
-  | "bb.feature.sync-schema-all-versions"
-  // Policy Control
-  | "bb.feature.rollout-policy"
-  | "bb.feature.environment-tier-policy"
-  | "bb.feature.sensitive-data"
-  | "bb.feature.access-control"
-  | "bb.feature.custom-approval"
-  // Efficiency
-  | "bb.feature.batch-query"
-  // Collaboration
-  | "bb.feature.shared-sql-script"
-  // Plugins
-  | "bb.feature.ai-assistant"
-  // Instance count limit
-  | "bb.feature.instance-count"
-  // User count limit
-  | "bb.feature.user-count";
+// Use proto Feature enum as the primary feature type
+export type Feature = PlanFeature;
 
-export const instanceLimitFeature = new Set<FeatureType>([
-  // Change Workflow
-  "bb.feature.schema-drift",
-  "bb.feature.encrypted-secrets",
-  // Database Management
-  "bb.feature.read-replica-connection",
-  "bb.feature.custom-instance-synchronization",
-  "bb.feature.sync-schema-all-versions",
-  "bb.feature.database-grouping",
-  // Policy Control
-  "bb.feature.sensitive-data",
-  "bb.feature.rollout-policy",
+// Instance-limited features that require activated instances
+export const instanceLimitFeature = new Set<PlanFeature>([
+  PlanFeature.FEATURE_DATABASE_SECRET_VARIABLES,
+  PlanFeature.FEATURE_INSTANCE_READ_ONLY_CONNECTION,
+  PlanFeature.FEATURE_DATA_MASKING,
 ]);
 
 export const planTypeToString = (planType: PlanType): string => {
@@ -81,28 +29,57 @@ export const planTypeToString = (planType: PlanType): string => {
   }
 };
 
-interface PlanFeature {
-  type: string;
-  content?: string;
-  tooltip?: string;
-}
+// Re-export proto types for convenience
+export type { PlanConfig, PlanLimitConfig };
 
-export interface Plan {
-  // Plan meta data
-  type: PlanType;
-  trialDays: number;
-  trialPrice: number;
-  unitPrice: number;
-  pricePerSeatPerMonth: number;
-  pricePerInstancePerMonth: number;
-  maximumSeatCount: number;
-  maximumInstanceCount: number;
-  // Plan desc and feature
-  title: string;
-  featureList: PlanFeature[];
-}
+export const PLAN_CONFIG: PlanConfig = planData;
+export const PLANS: PlanLimitConfig[] = planData.plans;
 
-export const PLANS: Plan[] = planData.planList.map((raw: Plan) => ({
-  ...raw,
-  type: planTypeFromJSON(raw.type + 1),
-}));
+// Create a plan feature matrix from the YAML data
+export const PLAN_FEATURE_MATRIX = new Map<PlanType, Set<PlanFeature>>();
+
+// Initialize the feature matrix from plan data
+PLANS.forEach((plan) => {
+  PLAN_FEATURE_MATRIX.set(plan.type, new Set(plan.features));
+});
+
+// Helper function to check if a plan has a feature
+export const planHasFeature = (plan: PlanType, feature: PlanFeature): boolean => {
+  const planFeatures = PLAN_FEATURE_MATRIX.get(plan);
+  return planFeatures?.has(feature) ?? false;
+};
+
+// Helper function to get minimum required plan for a feature
+export const getMinimumRequiredPlan = (feature: PlanFeature): PlanType => {
+  const planOrder = [PlanType.FREE, PlanType.TEAM, PlanType.ENTERPRISE];
+  for (const plan of planOrder) {
+    if (planHasFeature(plan, feature)) {
+      return plan;
+    }
+  }
+  return PlanType.ENTERPRISE;
+};
+
+// Helper function to check if a feature is available for a plan
+export const hasFeature = (plan: PlanType, feature: PlanFeature): boolean => {
+  return planHasFeature(plan, feature);
+};
+
+// Helper function to check instance features
+export const hasInstanceFeature = (plan: PlanType, feature: PlanFeature, instanceActivated = true): boolean => {
+  if (!hasFeature(plan, feature)) {
+    return false;
+  }
+  
+  // For FREE plan, don't check instance activation
+  if (plan === PlanType.FREE) {
+    return true;
+  }
+  
+  // For instance-limited features, check activation
+  if (instanceLimitFeature.has(feature)) {
+    return instanceActivated;
+  }
+  
+  return true;
+};

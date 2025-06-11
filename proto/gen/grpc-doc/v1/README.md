@@ -206,15 +206,14 @@
     - [IssueService](#bytebase-v1-IssueService)
   
 - [v1/subscription_service.proto](#v1_subscription_service-proto)
-    - [Feature](#bytebase-v1-Feature)
-    - [Feature.MatrixEntry](#bytebase-v1-Feature-MatrixEntry)
-    - [FeatureMatrix](#bytebase-v1-FeatureMatrix)
-    - [GetFeatureMatrixRequest](#bytebase-v1-GetFeatureMatrixRequest)
     - [GetSubscriptionRequest](#bytebase-v1-GetSubscriptionRequest)
     - [PatchSubscription](#bytebase-v1-PatchSubscription)
+    - [PlanConfig](#bytebase-v1-PlanConfig)
+    - [PlanLimitConfig](#bytebase-v1-PlanLimitConfig)
     - [Subscription](#bytebase-v1-Subscription)
     - [UpdateSubscriptionRequest](#bytebase-v1-UpdateSubscriptionRequest)
   
+    - [PlanFeature](#bytebase-v1-PlanFeature)
     - [PlanType](#bytebase-v1-PlanType)
   
     - [SubscriptionService](#bytebase-v1-SubscriptionService)
@@ -455,7 +454,6 @@
     - [Plan.ExportDataConfig](#bytebase-v1-Plan-ExportDataConfig)
     - [Plan.PlanCheckRunStatusCountEntry](#bytebase-v1-Plan-PlanCheckRunStatusCountEntry)
     - [Plan.Spec](#bytebase-v1-Plan-Spec)
-    - [Plan.Step](#bytebase-v1-Plan-Step)
     - [PlanCheckRun](#bytebase-v1-PlanCheckRun)
     - [PlanCheckRun.Result](#bytebase-v1-PlanCheckRun-Result)
     - [PlanCheckRun.Result.SqlReviewReport](#bytebase-v1-PlanCheckRun-Result-SqlReviewReport)
@@ -3922,63 +3920,6 @@ ANY means approving any node will proceed.
 
 
 
-<a name="bytebase-v1-Feature"></a>
-
-### Feature
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| name | [string](#string) |  | Name is the feature name. |
-| matrix | [Feature.MatrixEntry](#bytebase-v1-Feature-MatrixEntry) | repeated | Matrix is the feature matrix for different plan. The key is the plan enum in string value. |
-
-
-
-
-
-
-<a name="bytebase-v1-Feature-MatrixEntry"></a>
-
-### Feature.MatrixEntry
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| key | [string](#string) |  |  |
-| value | [bool](#bool) |  |  |
-
-
-
-
-
-
-<a name="bytebase-v1-FeatureMatrix"></a>
-
-### FeatureMatrix
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| features | [Feature](#bytebase-v1-Feature) | repeated |  |
-
-
-
-
-
-
-<a name="bytebase-v1-GetFeatureMatrixRequest"></a>
-
-### GetFeatureMatrixRequest
-
-
-
-
-
-
-
 <a name="bytebase-v1-GetSubscriptionRequest"></a>
 
 ### GetSubscriptionRequest
@@ -3998,6 +3939,40 @@ ANY means approving any node will proceed.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | license | [string](#string) |  |  |
+
+
+
+
+
+
+<a name="bytebase-v1-PlanConfig"></a>
+
+### PlanConfig
+PlanConfig represents the configuration for all plans loaded from plan.yaml
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| plans | [PlanLimitConfig](#bytebase-v1-PlanLimitConfig) | repeated |  |
+| instance_features | [PlanFeature](#bytebase-v1-PlanFeature) | repeated |  |
+
+
+
+
+
+
+<a name="bytebase-v1-PlanLimitConfig"></a>
+
+### PlanLimitConfig
+PlanLimitConfig represents a single plan&#39;s configuration
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| type | [PlanType](#bytebase-v1-PlanType) |  |  |
+| maximum_instance_count | [int32](#int32) |  |  |
+| maximum_seat_count | [int32](#int32) |  |  |
+| features | [PlanFeature](#bytebase-v1-PlanFeature) | repeated |  |
 
 
 
@@ -4043,6 +4018,90 @@ ANY means approving any node will proceed.
  
 
 
+<a name="bytebase-v1-PlanFeature"></a>
+
+### PlanFeature
+PlanFeature represents the available features in Bytebase
+
+| Name | Number | Description |
+| ---- | ------ | ----------- |
+| FEATURE_UNSPECIFIED | 0 |  |
+| FEATURE_DATABASE_CHANGE | 1 | Database Change Management |
+| FEATURE_GIT_BASED_SCHEMA_VERSION_CONTROL | 2 |  |
+| FEATURE_DECLARATIVE_SCHEMA_MIGRATION | 3 |  |
+| FEATURE_COMPARE_AND_SYNC_SCHEMA | 4 |  |
+| FEATURE_ONLINE_SCHEMA_CHANGE | 5 |  |
+| FEATURE_PRE_DEPLOYMENT_SQL_REVIEW | 6 |  |
+| FEATURE_AUTOMATIC_BACKUP_BEFORE_DATA_CHANGES | 7 |  |
+| FEATURE_ONE_CLICK_DATA_ROLLBACK | 8 |  |
+| FEATURE_MULTI_DATABASE_BATCH_CHANGES | 9 |  |
+| FEATURE_PROGRESSIVE_ENVIRONMENT_DEPLOYMENT | 10 |  |
+| FEATURE_SCHEDULED_ROLLOUT_TIME | 11 |  |
+| FEATURE_DATABASE_CHANGELOG | 12 |  |
+| FEATURE_SCHEMA_DRIFT_DETECTION | 13 |  |
+| FEATURE_CHANGELIST | 14 |  |
+| FEATURE_SCHEMA_TEMPLATE | 15 |  |
+| FEATURE_ROLLOUT_POLICY | 16 |  |
+| FEATURE_WEB_BASED_SQL_EDITOR | 17 | SQL Editor &amp; Development |
+| FEATURE_SQL_EDITOR_ADMIN_MODE | 18 |  |
+| FEATURE_NATURAL_LANGUAGE_TO_SQL | 19 |  |
+| FEATURE_AI_QUERY_EXPLANATION | 20 |  |
+| FEATURE_AI_QUERY_SUGGESTIONS | 21 |  |
+| FEATURE_AUTO_COMPLETE | 22 |  |
+| FEATURE_SCHEMA_DIAGRAM | 23 |  |
+| FEATURE_SCHEMA_EDITOR | 24 |  |
+| FEATURE_DATA_EXPORT | 25 |  |
+| FEATURE_QUERY_HISTORY | 26 |  |
+| FEATURE_SAVED_AND_SHARED_SQL_SCRIPTS | 27 |  |
+| FEATURE_SQL_EDITOR_DDL_DML_RESTRICTION | 28 |  |
+| FEATURE_BATCH_QUERY | 29 |  |
+| FEATURE_INSTANCE_READ_ONLY_CONNECTION | 30 |  |
+| FEATURE_QUERY_POLICY | 31 |  |
+| FEATURE_RESTRICT_COPYING_DATA | 32 |  |
+| FEATURE_IAM | 33 | Security &amp; Compliance |
+| FEATURE_INSTANCE_SSL_CONNECTION | 34 |  |
+| FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL | 35 |  |
+| FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION | 36 |  |
+| FEATURE_GOOGLE_AND_GITHUB_SSO | 37 |  |
+| FEATURE_USER_GROUPS | 38 |  |
+| FEATURE_DISALLOW_SELF_SERVICE_SIGNUP | 39 |  |
+| FEATURE_DATABASE_SECRET_VARIABLES | 40 |  |
+| FEATURE_QUERY_DATASOURCE_RESTRICTION | 41 |  |
+| FEATURE_CUSTOM_INSTANCE_SYNC_TIME | 42 |  |
+| FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT | 43 |  |
+| FEATURE_RISK_ASSESSMENT | 44 |  |
+| FEATURE_APPROVAL_WORKFLOW | 45 |  |
+| FEATURE_AUDIT_LOG | 46 |  |
+| FEATURE_ENTERPRISE_SSO | 47 |  |
+| FEATURE_TWO_FA | 48 |  |
+| FEATURE_PASSWORD_RESTRICTIONS | 49 |  |
+| FEATURE_DISALLOW_PASSWORD_SIGNIN | 50 |  |
+| FEATURE_CUSTOM_ROLES | 51 |  |
+| FEATURE_REQUEST_ROLE_WORKFLOW | 52 |  |
+| FEATURE_DATA_MASKING | 53 |  |
+| FEATURE_DATA_CLASSIFICATION | 54 |  |
+| FEATURE_SCIM | 55 |  |
+| FEATURE_DIRECTORY_SYNC | 56 |  |
+| FEATURE_SIGN_IN_FREQUENCY_CONTROL | 57 |  |
+| FEATURE_EXTERNAL_SECRET_MANAGER | 58 |  |
+| FEATURE_USER_EMAIL_DOMAIN_RESTRICTION | 59 |  |
+| FEATURE_ENVIRONMENT_MANAGEMENT | 60 | Administration &amp; Support |
+| FEATURE_IM_NOTIFICATIONS | 61 |  |
+| FEATURE_TERRAFORM_PROVIDER | 62 |  |
+| FEATURE_DATABASE_GROUPS | 63 |  |
+| FEATURE_ENVIRONMENT_TIERS | 64 |  |
+| FEATURE_DASHBOARD_ANNOUNCEMENT | 65 |  |
+| FEATURE_API_INTEGRATION_GUIDANCE | 66 |  |
+| FEATURE_CUSTOM_LOGO | 67 |  |
+| FEATURE_WATERMARK | 68 |  |
+| FEATURE_ROADMAP_PRIORITIZATION | 69 |  |
+| FEATURE_CUSTOM_MSA | 70 |  |
+| FEATURE_COMMUNITY_SUPPORT | 71 |  |
+| FEATURE_EMAIL_SUPPORT | 72 |  |
+| FEATURE_DEDICATED_SUPPORT_WITH_SLA | 73 |  |
+
+
+
 <a name="bytebase-v1-PlanType"></a>
 
 ### PlanType
@@ -4069,7 +4128,6 @@ ANY means approving any node will proceed.
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | GetSubscription | [GetSubscriptionRequest](#bytebase-v1-GetSubscriptionRequest) | [Subscription](#bytebase-v1-Subscription) |  |
-| GetFeatureMatrix | [GetFeatureMatrixRequest](#bytebase-v1-GetFeatureMatrixRequest) | [FeatureMatrix](#bytebase-v1-FeatureMatrix) |  |
 | UpdateSubscription | [UpdateSubscriptionRequest](#bytebase-v1-UpdateSubscriptionRequest) | [Subscription](#bytebase-v1-Subscription) |  |
 
  
@@ -7058,14 +7116,14 @@ QueryDataPolicy is the policy configuration for querying data.
 <a name="bytebase-v1-SQLReviewRule"></a>
 
 ### SQLReviewRule
-
+The SQL review rules. Check the SQL_REVIEW_RULES_DOCUMENTATION.md for details.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | type | [string](#string) |  |  |
 | level | [SQLReviewRuleLevel](#bytebase-v1-SQLReviewRuleLevel) |  |  |
-| payload | [string](#string) |  |  |
+| payload | [string](#string) |  | The payload is a JSON string that varies by rule type. |
 | engine | [Engine](#bytebase-v1-Engine) |  |  |
 | comment | [string](#string) |  |  |
 
@@ -7523,22 +7581,6 @@ When paginating, all other parameters provided to `ListPlans` must match the cal
 
 
 
-<a name="bytebase-v1-Plan-Step"></a>
-
-### Plan.Step
-
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| title | [string](#string) |  |  |
-| specs | [Plan.Spec](#bytebase-v1-Plan-Spec) | repeated |  |
-
-
-
-
-
-
 <a name="bytebase-v1-PlanCheckRun"></a>
 
 ### PlanCheckRun
@@ -7625,6 +7667,7 @@ When paginating, all other parameters provided to `ListPlans` must match the cal
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | name | [string](#string) |  | The plan to run plan checks. Format: projects/{project}/plans/{plan} |
+| spec_id | [string](#string) | optional | The UUID of the specific spec to run plan checks for. This should match the spec.id field in Plan.Spec. If not set, all specs in the plan will be used. |
 
 
 
@@ -9094,13 +9137,15 @@ When paginating, all other parameters provided to `ListReleases` must match the 
 | ----- | ---- | ----- | ----------- |
 | id | [string](#string) |  | The unique identifier for the file. |
 | path | [string](#string) |  | The path of the file. e.g. `2.2/V0001_create_table.sql`. |
-| sheet | [string](#string) |  | The sheet that holds the content. Format: projects/{project}/sheets/{sheet} |
-| sheet_sha256 | [string](#string) |  | The SHA256 hash value of the sheet. |
 | type | [ReleaseFileType](#bytebase-v1-ReleaseFileType) |  |  |
 | version | [string](#string) |  |  |
 | change_type | [Release.File.ChangeType](#bytebase-v1-Release-File-ChangeType) |  |  |
-| statement | [bytes](#bytes) |  | The statement is used for preview or check purpose. |
-| statement_size | [int64](#int64) |  |  |
+| sheet | [string](#string) |  | For inputs, we must either use `sheet` or `statement`. For outputs, we always use `sheet`. `statement` is the preview of the sheet content.
+
+The sheet that holds the content. Format: projects/{project}/sheets/{sheet} |
+| statement | [bytes](#bytes) |  | The raw SQL statement content. |
+| sheet_sha256 | [string](#string) |  | The SHA256 hash value of the sheet content or the statement. |
+| statement_size | [int64](#int64) |  | The size of the statement in bytes. |
 
 
 

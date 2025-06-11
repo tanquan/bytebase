@@ -1,8 +1,11 @@
 <template>
   <div class="flex flex-col space-y-4">
-    <FeatureAttention
+    <BBAttention
       v-if="remainingInstanceCount <= 3"
-      feature="bb.feature.instance-count"
+      :type="'warning'"
+      :title="
+        $t('subscription.usage.instance-count.title')
+      "
       :description="instanceCountAttention"
     />
     <div class="px-4 flex items-center space-x-2">
@@ -61,43 +64,41 @@
       </DrawerContent>
     </InstanceForm>
   </Drawer>
-
-  <FeatureModal
-    :open="state.showFeatureModal"
-    :feature="'bb.feature.instance-count'"
-    @cancel="state.showFeatureModal = false"
-  />
 </template>
 
 <script lang="tsx" setup>
-import { PlusIcon } from "lucide-vue-next";
-import { NButton } from "naive-ui";
-import { computed, onMounted, reactive, ref } from "vue";
-import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
+import { BBAttention } from "@/bbkit";
 import AdvancedSearch from "@/components/AdvancedSearch";
 import type { ScopeOption } from "@/components/AdvancedSearch/types";
 import { useCommonSearchScopeOptions } from "@/components/AdvancedSearch/useCommonSearchScopeOptions";
-import { FeatureAttention, FeatureModal } from "@/components/FeatureGuard";
 import {
   InstanceForm,
   Form as InstanceFormBody,
   Buttons as InstanceFormButtons,
 } from "@/components/InstanceForm/";
-import { InstanceOperations, PagedInstanceTable } from "@/components/v2";
-import { Drawer, DrawerContent } from "@/components/v2";
 import {
-  useAppFeature,
-  useUIStateStore,
-  useSubscriptionV1Store,
-  useInstanceV1Store,
+  Drawer,
+  DrawerContent,
+  InstanceOperations,
+  PagedInstanceTable,
+} from "@/components/v2";
+import {
   useActuatorV1Store,
+  useAppFeature,
+  useInstanceV1Store,
+  useSubscriptionV1Store,
+  useUIStateStore,
 } from "@/store";
 import { environmentNamePrefix } from "@/store/modules/v1/common";
 import { isValidInstanceName } from "@/types";
 import { engineFromJSON } from "@/types/proto/v1/common";
 import type { Instance } from "@/types/proto/v1/instance_service";
 import { type SearchParams, hasWorkspacePermissionV2 } from "@/utils";
+import { PlusIcon } from "lucide-vue-next";
+import { NButton } from "naive-ui";
+import { computed, onMounted, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 
 interface LocalState {
   params: SearchParams;
@@ -218,13 +219,13 @@ const remainingInstanceCount = computed((): number => {
 
 const instanceCountAttention = computed((): string => {
   const upgrade = t(
-    "dynamic.subscription.features.bb-feature-instance-count.upgrade"
+    "subscription.usage.instance-count.upgrade"
   );
   let status = "";
 
   if (remainingInstanceCount.value > 0) {
     status = t(
-      "dynamic.subscription.features.bb-feature-instance-count.remaining",
+      "subscription.usage.instance-count.remaining",
       {
         total: subscriptionStore.instanceCountLimit,
         count: remainingInstanceCount.value,
@@ -232,7 +233,7 @@ const instanceCountAttention = computed((): string => {
     );
   } else {
     status = t(
-      "dynamic.subscription.features.bb-feature-instance-count.runoutof",
+      "subscription.usage.instance-count.runoutof",
       {
         total: subscriptionStore.instanceCountLimit,
       }

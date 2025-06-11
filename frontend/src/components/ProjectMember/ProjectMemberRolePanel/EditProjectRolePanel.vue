@@ -41,7 +41,7 @@
               v-model:database-resources="state.databaseResources"
               :project-name="project.name"
               :include-cloumn="false"
-              :required-feature="'bb.feature.access-control'"
+              :required-feature="PlanFeature.FEATURE_IAM"
             />
           </div>
 
@@ -122,7 +122,7 @@
 
 <script lang="ts" setup>
 import dayjs from "dayjs";
-import { cloneDeep, isEqual, isUndefined } from "lodash-es";
+import { cloneDeep, isEqual } from "lodash-es";
 import { NButton, NDatePicker, NInput } from "naive-ui";
 import { computed, reactive, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
@@ -141,6 +141,7 @@ import type { ComposedProject, DatabaseResource } from "@/types";
 import { PresetRoleType } from "@/types";
 import { State } from "@/types/proto/v1/common";
 import type { Binding } from "@/types/proto/v1/iam_policy";
+import { PlanFeature } from "@/types/proto/v1/subscription_service";
 import { displayRoleTitle, checkRoleContainsAnyPermission } from "@/utils";
 import { convertFromExpr, buildConditionExpr } from "@/utils/issue/cel";
 import { getBindingIdentifier } from "../utils";
@@ -217,15 +218,23 @@ const allowRemoveRole = () => {
   return true;
 };
 
+const bindingCondition = computed(() =>
+  buildConditionExpr({
+    title: state.title,
+    role: props.binding.role,
+    description: state.description,
+    expirationTimestampInMS: state.expirationTimestamp,
+    rowLimit: state.maxRowCount,
+    databaseResources: state.databaseResources,
+  })
+);
+
 const allowConfirm = computed(() => {
-  if (
-    !isUndefined(state.databaseResources) &&
-    state.databaseResources.length === 0
-  ) {
-    return false;
-  }
   // only allow update current single user.
-  return props.binding.members.length === 1;
+  return (
+    props.binding.members.length === 1 &&
+    !isEqual(bindingCondition.value, props.binding.condition)
+  );
 });
 
 onMounted(() => {
@@ -267,14 +276,7 @@ const handleUpdateRole = async () => {
 
   const newBinding = cloneDeep(props.binding);
   newBinding.members = [member];
-  newBinding.condition = buildConditionExpr({
-    title: state.title,
-    role: props.binding.role,
-    description: state.description,
-    expirationTimestampInMS: state.expirationTimestamp,
-    rowLimit: state.maxRowCount,
-    databaseResources: state.databaseResources,
-  });
+  newBinding.condition = bindingCondition.value;
 
   const policy = cloneDeep(iamPolicy.value);
   const oldBindingIndex = policy.bindings.findIndex(

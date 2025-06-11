@@ -21,20 +21,19 @@
 </template>
 
 <script lang="ts" setup>
-import { reactive, computed } from "vue";
-import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
 import { BBAttention } from "@/bbkit";
 import { useLanguage } from "@/composables/useLanguage";
-import { useSubscriptionV1Store, useActuatorV1Store } from "@/store";
-import type { FeatureType } from "@/types";
-import { planTypeToString, ENTERPRISE_INQUIRE_LINK } from "@/types";
-import { instanceLimitFeature } from "@/types";
+import { useActuatorV1Store, useSubscriptionV1Store } from "@/store";
+import { ENTERPRISE_INQUIRE_LINK, instanceLimitFeature, planTypeToString } from "@/types";
 import type {
   Instance,
   InstanceResource,
 } from "@/types/proto/v1/instance_service";
+import { PlanFeature, PlanType } from "@/types/proto/v1/subscription_service";
 import { autoSubscriptionRoute, hasWorkspacePermissionV2 } from "@/utils";
+import { computed, reactive } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import InstanceAssignment from "../InstanceAssignment.vue";
 import WeChatQRModal from "../WeChatQRModal.vue";
 
@@ -45,7 +44,7 @@ interface LocalState {
 
 const props = withDefaults(
   defineProps<{
-    feature: FeatureType;
+    feature: PlanFeature;
     description?: string;
     type?: "info" | "warning" | "error";
     instance?: Instance | InstanceResource;
@@ -135,20 +134,17 @@ const descriptionText = computed(() => {
   }
 
   if (!hasFeature.value) {
-    const startTrial = subscriptionStore.canUpgradeTrial
-      ? t("subscription.upgrade-trial")
-      : subscriptionStore.isTrialing
+    const startTrial = subscriptionStore.isTrialing
         ? ""
         : t("subscription.trial-for-days", {
             days: subscriptionStore.trialingDays,
           });
-    if (!Array.isArray(subscriptionStore.featureMatrix.get(props.feature))) {
+    // Check if feature is available in any plan
+    // TODO(d): simplify the check.
+    const requiredPlan = subscriptionStore.getMinimumRequiredPlan(props.feature);
+    if (requiredPlan === PlanType.FREE && subscriptionStore.hasFeature(props.feature)) {
       return `${description}\n${startTrial}`;
     }
-
-    const requiredPlan = subscriptionStore.getMinimumRequiredPlan(
-      props.feature
-    );
     const trialText = t("subscription.required-plan-with-trial", {
       requiredPlan: t(
         `subscription.plan.${planTypeToString(requiredPlan)}.title`

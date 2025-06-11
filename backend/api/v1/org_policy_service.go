@@ -12,7 +12,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
 	"github.com/bytebase/bytebase/backend/store"
@@ -368,11 +367,6 @@ func (s *OrgPolicyService) convertPolicyPayloadToString(ctx context.Context, pol
 	switch policy.Type {
 	case v1pb.PolicyType_ROLLOUT_POLICY:
 		rolloutPolicy := convertToStorePBRolloutPolicy(policy.GetRolloutPolicy())
-		if !rolloutPolicy.Automatic {
-			if err := s.licenseService.IsFeatureEnabled(base.FeatureRolloutPolicy); err != nil {
-				return "", status.Error(codes.PermissionDenied, err.Error())
-			}
-		}
 		payloadBytes, err := protojson.Marshal(rolloutPolicy)
 		if err != nil {
 			return "", errors.Wrap(err, "failed to marshal rollout policy")
@@ -388,7 +382,7 @@ func (s *OrgPolicyService) convertPolicyPayloadToString(ctx context.Context, pol
 		}
 		return string(payloadBytes), nil
 	case v1pb.PolicyType_DISABLE_COPY_DATA:
-		if err := s.licenseService.IsFeatureEnabled(base.FeatureAccessControl); err != nil {
+		if err := s.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_RESTRICT_COPYING_DATA); err != nil {
 			return "", status.Error(codes.PermissionDenied, err.Error())
 		}
 		payload, err := convertToDisableCopyDataPolicyPayload(policy.GetDisableCopyDataPolicy())
@@ -401,7 +395,7 @@ func (s *OrgPolicyService) convertPolicyPayloadToString(ctx context.Context, pol
 		}
 		return string(payloadBytes), nil
 	case v1pb.PolicyType_DATA_EXPORT:
-		if err := s.licenseService.IsFeatureEnabled(base.FeatureAccessControl); err != nil {
+		if err := s.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_QUERY_POLICY); err != nil {
 			return "", status.Error(codes.PermissionDenied, err.Error())
 		}
 		payload, err := convertToExportDataPolicyPayload(policy.GetExportDataPolicy())
@@ -414,7 +408,7 @@ func (s *OrgPolicyService) convertPolicyPayloadToString(ctx context.Context, pol
 		}
 		return string(payloadBytes), nil
 	case v1pb.PolicyType_DATA_QUERY:
-		if err := s.licenseService.IsFeatureEnabled(base.FeatureAccessControl); err != nil {
+		if err := s.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_QUERY_POLICY); err != nil {
 			return "", status.Error(codes.PermissionDenied, err.Error())
 		}
 		payload, err := convertToQueryDataPolicyPayload(policy.GetQueryDataPolicy())
@@ -427,7 +421,7 @@ func (s *OrgPolicyService) convertPolicyPayloadToString(ctx context.Context, pol
 		}
 		return string(payloadBytes), nil
 	case v1pb.PolicyType_MASKING_RULE:
-		if err := s.licenseService.IsFeatureEnabled(base.FeatureSensitiveData); err != nil {
+		if err := s.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_DATA_MASKING); err != nil {
 			return "", status.Error(codes.PermissionDenied, err.Error())
 		}
 		payload, err := convertToStorePBMskingRulePolicy(policy.GetMaskingRulePolicy())
@@ -440,7 +434,7 @@ func (s *OrgPolicyService) convertPolicyPayloadToString(ctx context.Context, pol
 		}
 		return string(payloadBytes), nil
 	case v1pb.PolicyType_MASKING_EXCEPTION:
-		if err := s.licenseService.IsFeatureEnabled(base.FeatureSensitiveData); err != nil {
+		if err := s.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_DATA_MASKING); err != nil {
 			return "", status.Error(codes.PermissionDenied, err.Error())
 		}
 		payload, err := s.convertToStorePBMaskingExceptionPolicyPayload(ctx, policy.GetMaskingExceptionPolicy())
@@ -453,9 +447,6 @@ func (s *OrgPolicyService) convertPolicyPayloadToString(ctx context.Context, pol
 		}
 		return string(payloadBytes), nil
 	case v1pb.PolicyType_RESTRICT_ISSUE_CREATION_FOR_SQL_REVIEW:
-		if err := s.licenseService.IsFeatureEnabled(base.FeatureAccessControl); err != nil {
-			return "", status.Error(codes.PermissionDenied, err.Error())
-		}
 		payload, err := convertToRestrictIssueCreationForSQLReviewPayload(policy.GetRestrictIssueCreationForSqlReviewPolicy())
 		if err != nil {
 			return "", status.Error(codes.InvalidArgument, err.Error())

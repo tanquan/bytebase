@@ -291,7 +291,11 @@
       },
       "advice-split-statement-to-single-online-migration-issue": "Se recomienda dividir esta declaración en un único problema de migración en línea."
     },
-    "prior-backup-tips": "Haga una copia de seguridad de los datos afectados con anticipación"
+    "prior-backup-tips": "La copia de seguridad de los datos afectados con anticipación",
+    "database-create": {
+      "created": "Creado",
+      "pending": "Pendiente"
+    }
   },
   "task-run": {
     "status": {
@@ -880,12 +884,6 @@
       "closed": "cerrado",
       "close": "Cerca"
     },
-    "sdl": {
-      "schema-change": "Cambio de esquema",
-      "generated-ddl-statements": "Declaraciones DDL generadas",
-      "full-schema": "Esquema completo",
-      "left-schema-may-change": "El esquema del lado izquierdo puede cambiar antes de que se aplique la incidencia."
-    },
     "approval-flow": {
       "self": "Flujo de aprobación",
       "tooltip": "Los aprobadores revisarán y aprobarán el problema en el orden especificado en el flujo. \nLa emisión solo se puede aplicar después de que se hayan aprobado todos los pasos del flujo. \nPuede configurar un flujo de aprobación personalizado para cada riesgo.",
@@ -1003,7 +1001,6 @@
     "data-change-description": "Modificar datos (DML)",
     "select-targets": "Seleccionar objetivos",
     "overview": {
-      "title": "Descripción general del plan",
       "description": "Ver y administrar todas las especificaciones de este plan",
       "total-specs": "Especificaciones totales",
       "total-targets": "Objetivos totales",
@@ -1014,8 +1011,7 @@
     "navigator": {
       "overview": "Descripción general",
       "specifications": "Presupuesto",
-      "spec-number": "Especificación {number}",
-      "no-specifications": "Sin especificaciones",
+      "checks": "Cheques",
       "statement-empty": "La declaración está vacía"
     },
     "spec": {
@@ -1027,19 +1023,11 @@
         "database-change": "Cambio de base de datos",
         "export-data": "Exportar datos",
         "unknown": "Desconocido"
-      },
-      "status": {
-        "pass": "Aprobar",
-        "warn": "Advertir",
-        "error": "Error"
       }
     },
     "targets": {
       "title": "Objetivos",
       "no-targets-found": "No se encontraron objetivos",
-      "no-targets": "Sin objetivos",
-      "one-target": "1 objetivo",
-      "multiple-targets": "{count} objetivos",
       "one-database": "1 base de datos",
       "multiple-databases": "{count} bases de datos",
       "database-group": "Grupo de bases de datos",
@@ -1149,7 +1137,8 @@
     },
     "selected-n-instances": "{n} instancia seleccionada | {n} instancias seleccionadas",
     "users": "Usuarios",
-    "successfully-archived-instance-updatedinstance-name": "Instancia '{0}' archivada con éxito.",
+    "successfully-restored-instance": "Se restauró exitosamente la instancia '{0}'.",
+    "successfully-archived-instance": "Se archivó exitosamente la instancia '{0}'.",
     "successfully-synced-schema-for-instance-instance-value-name": "Esquema sincronizado con éxito para la instancia '{0}'.",
     "archive-this-instance": "Archivar esta instancia",
     "archive-instance-instance-name": "¿Archivar la instancia '{0}'?",
@@ -2077,16 +2066,28 @@
     },
     "description": "Puedes subir tu licencia Bytebase para desbloquear funciones de edición/empresa.",
     "upload-license": "Subir licencia",
-    "upgrade-trial-button": "Actualizar prueba",
     "request-n-days-trial": "Solicite una prueba de {days} días (no se requiere tarjeta de crédito)",
     "request-with-qr": "Escanear código QR",
     "require-subscription": "Esta función requiere una suscripción a {requiredPlan}. Compre una licencia de Bytebase para desbloquearla.",
     "required-plan-with-trial": "Esta función requiere {requiredPlan}. {startTrial}",
     "trial-for-plan": "Puedes iniciar una prueba gratuita de {plan} por {days} días - no se requiere tarjeta de crédito.",
     "trial-for-days": "Puedes iniciar una prueba gratuita por {days} días - no se requiere tarjeta de crédito.",
-    "upgrade-trial": "Puedes actualizar tu prueba gratuita a este plan.",
     "contact-to-upgrade": "Contacta al administrador de tu espacio de trabajo para actualizar el plan.",
     "upgrade-now": "Actualizar ahora",
+    "usage": {
+      "instance-count": {
+        "title": "Límite de cantidad de instancias",
+        "remaining": "Tu cuota total de instancias es de {total}, sólo te quedan {count} instancias.",
+        "runoutof": "Te has quedado sin tu cuota de instancias {total}.",
+        "upgrade": "@:{'subscription.upgrade'} para obtener más cuota de instancias."
+      },
+      "user-count": {
+        "title": "Límite de conteo de usuarios",
+        "remaining": "Su cuota total de usuarios es {total}, solo quedan {count} usuarios.",
+        "runoutof": "Se ha quedado sin su cuota de usuario {total}.",
+        "upgrade": "@:{'subscription.upgrade'} para obtener una cuota de usuario ilimitada."
+      }
+    },
     "instance-assignment": {
       "license": "Licencia",
       "assign-license": "Asignar licencia",
@@ -2112,6 +2113,28 @@
     "overuse-warning": "{neededPlan} puede estar restringido en {currentPlan}, actualice ahora para asegurar un uso adecuado.",
     "overuse-modal": {
       "description": "Está utilizando una función que actualmente no está incluida en {plan}. Actualice ahora para evitar interrupciones:"
+    },
+    "disabled-feature": "Función deshabilitada",
+    "upgrade": "Actualizar",
+    "contact-us": "Contáctanos",
+    "current": "Actual",
+    "expired": "Expirado",
+    "expires-at": "Expira el",
+    "plan-compare": "Comparar planes",
+    "trialing": "En período de prueba",
+    "unlimited": "Ilimitado",
+    "max-instance-count": "Cantidad máxima de instancias",
+    "plan": {
+      "free": {
+        "title": "Gratis"
+      },
+      "team": {
+        "title": "Equipo"
+      },
+      "enterprise": {
+        "title": "Empresa"
+      },
+      "try": "Pruébalo gratis."
     }
   },
   "sheet": {
@@ -2152,7 +2175,6 @@
     "delete": "Eliminar política de revisión SQL",
     "input-then-press-enter": "Ingrese el valor y luego presione enter para agregar",
     "not-available-for-free": "La regla no está disponible para {plan}",
-    "unlock-full-feature": "Desbloquear más de 100 reglas de validación de SQL",
     "search-by-name": "Buscar por nombre",
     "attach-resource": {
       "no-linked-resources": "Sin recursos adjuntos",
@@ -2186,7 +2208,16 @@
     "enabled-rules": "Reglas habilitadas",
     "rule-detail": "Detalle de la regla",
     "view-definition": "Ver definición",
-    "all-checks-passed": "Todos los controles pasaron."
+    "all-checks-passed": "Todas las comprobaciones pasaron",
+    "category": {
+      "builtin": "Integrado"
+    },
+    "level": {
+      "name": "Nivel",
+      "error": "Error",
+      "warning": "Advertencia",
+      "disabled": "Deshabilitado"
+    }
   },
   "audit-log": {
     "export-finished": "Exportación finalizada",
@@ -2622,12 +2653,31 @@
     "change-type": "Cambiar tipo"
   },
   "release": {
+    "title": "Liberar",
     "releases": "Lanzamientos",
     "files": "Archivos",
     "create": "Crear lanzamiento",
     "select": "Seleccionar versión",
     "archive-this-release": "Archivar este comunicado",
     "total-files": "Total de {count} archivos",
+    "plan-tip": "Este plan está configurado para usar una versión. Los cambios en la base de datos se ejecutarán mediante las sentencias SQL de los archivos de la versión seleccionada.",
+    "not-found": "Extraviado",
+    "vcs-source": "Fuente VCS",
+    "view-all-files": "Ver todos los archivos",
+    "and-n-more-files": "y {n} archivos más",
+    "change-type": {
+      "ddl": "DDL",
+      "ddl-ghost": "Fantasma DDL",
+      "dml": "DML",
+      "unspecified": "No especificado"
+    },
+    "file-type": {
+      "versioned": "Versión",
+      "unspecified": "No especificado"
+    },
+    "vcs-type": {
+      "unspecified": "No especificado"
+    },
     "actions": {
       "new-file": "Nuevo archivo",
       "import-from-release": "Importar desde la versión"

@@ -104,15 +104,15 @@ import { FeatureModal } from "@/components/FeatureGuard";
 import { PagedDatabaseTable } from "@/components/v2/Model/DatabaseV1Table";
 import {
   PROJECT_V1_ROUTE_ISSUE_DETAIL,
-  PROJECT_V1_ROUTE_REVIEW_CENTER_DETAIL,
+  PROJECT_V1_ROUTE_PLAN_DETAIL,
 } from "@/router/dashboard/projectV1";
 import { useDatabaseV1Store, useAppFeature } from "@/store";
 import {
   instanceNamePrefix,
   environmentNamePrefix,
 } from "@/store/modules/v1/common";
-import type { FeatureType } from "@/types";
 import { Engine } from "@/types/proto/v1/common";
+import { PlanFeature } from "@/types/proto/v1/subscription_service";
 import type { SearchParams, SearchScope } from "@/utils";
 import {
   allowUsingSchemaEditor,
@@ -153,7 +153,7 @@ const disableSchemaEditor = useAppFeature(
 );
 
 const featureModalContext = ref<{
-  feature?: FeatureType;
+  feature?: PlanFeature;
 }>({});
 
 const schemaEditorContext = ref<{
@@ -281,12 +281,12 @@ const generateMultiDb = async () => {
 
   router.push({
     name: state.planOnly
-      ? PROJECT_V1_ROUTE_REVIEW_CENTER_DETAIL
+      ? PROJECT_V1_ROUTE_PLAN_DETAIL
       : PROJECT_V1_ROUTE_ISSUE_DETAIL,
     params: {
       projectId: extractProjectResourceName(project.name),
       issueSlug: "create",
-      planSlug: "create",
+      planId: "create",
     },
     query,
   });

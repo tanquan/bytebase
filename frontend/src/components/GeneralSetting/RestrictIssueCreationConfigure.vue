@@ -13,7 +13,6 @@
           )
         }}
       </span>
-      <FeatureBadge feature="bb.feature.access-control" />
     </div>
     <div class="mt-1 mb-3 text-sm text-gray-400">
       {{
@@ -26,18 +25,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
 import {
-  hasFeature,
-  usePolicyV1Store,
   usePolicyByParentAndType,
+  usePolicyV1Store
 } from "@/store";
 import {
   PolicyResourceType,
   PolicyType,
 } from "@/types/proto/v1/org_policy_service";
 import { hasWorkspacePermissionV2 } from "@/utils";
-import { FeatureBadge } from "../FeatureGuard";
+import { computed, ref, watch } from "vue";
 import { Switch } from "../v2";
 
 const props = withDefaults(
@@ -56,8 +53,7 @@ const policyV1Store = usePolicyV1Store();
 const allowEdit = computed(() => {
   return (
     props.allowEdit &&
-    hasWorkspacePermissionV2("bb.policies.update") &&
-    hasFeature("bb.feature.access-control")
+    hasWorkspacePermissionV2("bb.policies.update")
   );
 });
 

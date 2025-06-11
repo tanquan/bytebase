@@ -1,11 +1,10 @@
 <template>
-  <div class="px-4 py-3 flex flex-col gap-y-2">
+  <div class="px-4 flex flex-col gap-y-2">
     <div class="flex items-center justify-between gap-2">
       <div class="flex items-center gap-1">
         <h3 class="text-base font-medium">{{ $t("plan.targets.title") }}</h3>
         <span class="text-control-light">({{ targets.length }})</span>
       </div>
-      <!-- TODO(claude): allow to update targets when no rollout is created by plan -->
       <NButton
         v-if="allowEdit"
         size="small"
@@ -105,21 +104,25 @@ import { NEllipsis, NTooltip, NButton } from "naive-ui";
 import { computed, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { BBSpin } from "@/bbkit";
+import { planServiceClient } from "@/grpcweb";
 import {
   useInstanceV1Store,
   useDatabaseV1Store,
   useDBGroupStore,
   useProjectV1Store,
+  pushNotification,
 } from "@/store";
 import {
   extractInstanceResourceName,
   instanceV1Name,
   extractDatabaseResourceName,
   extractDatabaseGroupName,
+  extractProjectResourceName,
 } from "@/utils";
 import { usePlanContext } from "../../logic/context";
 import { targetsForSpec } from "../../logic/plan";
 import TargetsSelectorDrawer from "./TargetsSelectorDrawer.vue";
+import { usePlanSpecContext } from "./context";
 
 interface TargetRow {
   target: string;
@@ -132,7 +135,8 @@ interface TargetRow {
 }
 
 const { t } = useI18n();
-const { plan, selectedSpec, isCreating } = usePlanContext();
+const { plan, isCreating, events } = usePlanContext();
+const { selectedSpec } = usePlanSpecContext();
 const instanceStore = useInstanceV1Store();
 const databaseStore = useDatabaseV1Store();
 const dbGroupStore = useDBGroupStore();
@@ -151,13 +155,16 @@ const isCreateDatabaseSpec = computed(() => {
 });
 
 const project = computed(() => {
-  if (!plan.value?.project) return undefined;
-  return projectStore.getProjectByName(plan.value.project);
+  if (!plan.value?.name) return undefined;
+  const projectName = `projects/${extractProjectResourceName(plan.value.name)}`;
+  return projectStore.getProjectByName(projectName);
 });
 
-// Only allow editing in creation mode or if the plan is editable
+// Only allow editing in creation mode or if the plan is editable.
+// An empty string for `plan.value.rollout` indicates that the plan is in a draft or uninitialized state,
+// which allows edits to be made.
 const allowEdit = computed(() => {
-  return isCreating.value && selectedSpec.value;
+  return (isCreating.value || plan.value.rollout === "") && selectedSpec.value;
 });
 
 // Prepare data - fetch resources when targets change
@@ -270,7 +277,7 @@ const getTypeLabel = (type: TargetRow["type"]) => {
   return typeLabels[type];
 };
 
-const handleUpdateTargets = (targets: string[]) => {
+const handleUpdateTargets = async (targets: string[]) => {
   if (!selectedSpec.value) return;
 
   // Update the targets in the spec.
@@ -279,6 +286,21 @@ const handleUpdateTargets = (targets: string[]) => {
     selectedSpec.value.exportDataConfig;
   if (config) {
     config.targets = targets;
+  }
+
+  if (!isCreating.value) {
+    await planServiceClient.updatePlan({
+      plan: plan.value,
+      updateMask: ["specs"],
+    });
+    events.emit("status-changed", {
+      eager: true,
+    });
+    pushNotification({
+      module: "bytebase",
+      style: "SUCCESS",
+      title: t("common.updated"),
+    });
   }
 };
 </script>

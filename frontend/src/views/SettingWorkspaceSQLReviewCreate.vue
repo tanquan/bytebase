@@ -1,6 +1,5 @@
 <template>
   <div class="space-y-4 h-full flex flex-col">
-    <FeatureAttention feature="bb.feature.sql-review" />
     <SQLReviewCreation
       class="flex-1"
       :selected-rule-list="[]"
@@ -10,10 +9,9 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, watchEffect } from "vue";
-import { FeatureAttention } from "@/components/FeatureGuard";
 import { SQLReviewCreation } from "@/components/SQLReview";
 import { useSQLReviewStore } from "@/store";
+import { computed, watchEffect } from "vue";
 
 const attachedResources = computed(() => {
   const url = new URL(window.location.href);

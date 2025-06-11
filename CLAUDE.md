@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### After Go Code Changes
 1. **Format**: Run `gofmt -w` on modified files
 2. **Lint**: Run `golangci-lint run --allow-parallel-runners` to catch issues
+   - **Important**: Run golangci-lint repeatedly until there are no issues. The linter has a max-issues limit and may not show all issues in a single run.
 3. **Auto-fix**: Use `golangci-lint run --fix --allow-parallel-runners` to fix issues automatically
 4. **Test**: Run relevant tests before committing
 
@@ -22,8 +23,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. **Test**: Run `pnpm --dir frontend test`
 
 ### After Proto Changes
-1. **Format**: Run `cd proto && buf format -w`
-2. **Lint**: Run `cd proto && buf lint`
+1. **Format**: Run `buf format -w proto`
+2. **Lint**: Run `buf lint proto`
 3. **Generate**: Run `cd proto && buf generate`
 
 ## Build/Test Commands
@@ -36,8 +37,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Frontend lint: `pnpm --dir frontend lint`
 - Frontend type check: `pnpm --dir frontend type-check`
 - Frontend test: `pnpm --dir frontend test`
-- Proto format: `cd proto && buf format -w`
-- Proto lint: `cd proto && buf lint`
+- Proto format: `buf format -w proto`
+- Proto lint: `buf lint proto`
 - Proto generate: `cd proto && buf generate`
 - Go lint: `golangci-lint run --allow-parallel-runners`
 - Connect to Postgres: `psql -U bbdev bbdev`
@@ -69,6 +70,7 @@ Always follow these guidelines to avoid common linting errors:
 - **Proper Import Ordering**: Maintain correct grouping and ordering of imports
 - **Consistency**: Keep function signatures, naming, and patterns consistent with existing code
 - **Export Rules**: Only export (capitalize) functions and types that need to be used outside the package
+- **Linting Command**: Always run `golangci-lint run --allow-parallel-runners` without appending filenames to avoid "function not defined" errors (functions are defined in other files within the package)
 
 ## Misc
 

@@ -291,7 +291,11 @@
       },
       "advice-split-statement-to-single-online-migration-issue": "Advice splitting this statement to single online migration issue."
     },
-    "prior-backup-tips": "Backup affected data ahead of time"
+    "prior-backup-tips": "Backup affected data ahead of time",
+    "database-create": {
+      "created": "Created",
+      "pending": "Pending"
+    }
   },
   "task-run": {
     "status": {
@@ -304,7 +308,7 @@
   },
   "banner": {
     "license-expired": "Your license for {plan} has expired on {expireAt}.",
-    "license-expires": "Your license for {plan} will expires in {days} days on {expireAt}.",
+    "license-expires": "Your license for {plan} will expire in {days} days on {expireAt}.",
     "trial-expires": "Your free trial for {plan} will expire in {days} days on {expireAt}.",
     "deploy": "Self Host",
     "cloud": "Cloud",
@@ -880,12 +884,6 @@
       "closed": "closed",
       "close": "Close"
     },
-    "sdl": {
-      "schema-change": "Schema change",
-      "generated-ddl-statements": "Generated DDL statements",
-      "full-schema": "Full schema",
-      "left-schema-may-change": "The schema on the left side may change before the issue is applied."
-    },
     "approval-flow": {
       "self": "Approval flow",
       "tooltip": "The approvers will review and approve the issue in the order specified in the flow. The issue can only be applied after all steps in the flow have been approved. You can configure a custom approval flow for each risk.",
@@ -1003,7 +1001,6 @@
     "data-change-description": "Modify data (DML)",
     "select-targets": "Select Targets",
     "overview": {
-      "title": "Plan Overview",
       "description": "View and manage all specifications in this plan",
       "total-specs": "Total Specs",
       "total-targets": "Total Targets",
@@ -1014,8 +1011,7 @@
     "navigator": {
       "overview": "Overview",
       "specifications": "Specifications",
-      "spec-number": "Spec {number}",
-      "no-specifications": "No specifications",
+      "checks": "Checks",
       "statement-empty": "Statement is empty"
     },
     "spec": {
@@ -1027,19 +1023,11 @@
         "database-change": "Database Change",
         "export-data": "Export Data",
         "unknown": "Unknown"
-      },
-      "status": {
-        "pass": "Pass",
-        "warn": "Warn",
-        "error": "Error"
       }
     },
     "targets": {
       "title": "Targets",
       "no-targets-found": "No targets found",
-      "no-targets": "No targets",
-      "one-target": "1 target",
-      "multiple-targets": "{count} targets",
       "one-database": "1 database",
       "multiple-databases": "{count} databases",
       "database-group": "Database Group",
@@ -1149,7 +1137,8 @@
     },
     "selected-n-instances": "{n} instance selected | {n} instances selected",
     "users": "Users",
-    "successfully-archived-instance-updatedinstance-name": "Successfully archived instance '{0}'.",
+    "successfully-restored-instance": "Successfully restored the instance '{0}'.",
+    "successfully-archived-instance": "Successfully archived the instance '{0}'.",
     "successfully-synced-schema-for-instance-instance-value-name": "Successfully synced schema for instance '{0}'.",
     "archive-this-instance": "Archive this instance",
     "archive-instance-instance-name": "Archive instance '{0}'?",
@@ -1311,7 +1300,7 @@
       "description": "Only sync selected databases.",
       "sync-all": "Sync all databases",
       "search-database": "Search database",
-      "add-database": "+ Add database, press enter to sumbit"
+      "add-database": "+ Add database, press enter to submit"
     },
     "advanced-search": {
       "scope": {
@@ -2077,16 +2066,28 @@
     },
     "description": "You can upload your Bytebase license to unlock pro/enterprise features.",
     "upload-license": "Upload license",
-    "upgrade-trial-button": "Upgrade trial",
     "request-n-days-trial": "Request {days} days trial (no credit card required)",
     "request-with-qr": "Scan QR code",
     "require-subscription": "This feature requires {requiredPlan} subscription, please purchase Bytebase license to unlock it.",
     "required-plan-with-trial": "This feature requires {requiredPlan}. {startTrial}",
     "trial-for-plan": "You can start a free trial for {plan} with {days} days - no credit card required.",
     "trial-for-days": "You can start a free trial for {days} days - no credit card required.",
-    "upgrade-trial": "You can upgrade your free trial to this plan.",
     "contact-to-upgrade": "Contact your Workspace admin to upgrade the plan.",
     "upgrade-now": "Upgrade Now",
+    "usage": {
+      "instance-count": {
+        "title": "Instance count limit",
+        "remaining": "Your total instance quota is {total}, with only {count} instances remaining.",
+        "runoutof": "You have run out of your {total} instance quota.",
+        "upgrade": "@:{'subscription.upgrade'} to get more instance quota."
+      },
+      "user-count": {
+        "title": "User count limit",
+        "remaining": "Your total user quota is {total}, with only {count} users remaining.",
+        "runoutof": "You have run out of your {total} user quota.",
+        "upgrade": "@:{'subscription.upgrade'} to get unlimited user quota."
+      }
+    },
     "instance-assignment": {
       "license": "License",
       "assign-license": "Assign License",
@@ -2112,6 +2113,28 @@
     "overuse-warning": "{neededPlan} on {currentPlan} will be restricted. Upgrade now to ensure continued access.",
     "overuse-modal": {
       "description": "You are using features unavailable in the {plan}. Upgrade now to ensure continued access:"
+    },
+    "disabled-feature": "Disabled Feature",
+    "upgrade": "Upgrade",
+    "contact-us": "Contact us",
+    "current": "Current",
+    "expired": "Expired",
+    "expires-at": "Expires at",
+    "plan-compare": "Compare plans",
+    "trialing": "Trialing",
+    "unlimited": "Unlimited",
+    "max-instance-count": "Max Instance Count",
+    "plan": {
+      "free": {
+        "title": "Free"
+      },
+      "team": {
+        "title": "Team"
+      },
+      "enterprise": {
+        "title": "Enterprise"
+      },
+      "try": "Try it free."
     }
   },
   "sheet": {
@@ -2152,13 +2175,12 @@
     "delete": "Delete SQL review policy",
     "input-then-press-enter": "Input the value then press enter to add",
     "not-available-for-free": "Rule is not available for {plan}",
-    "unlock-full-feature": "Unlock 100+ SQL lint rules",
     "search-by-name": "Search by name",
     "attach-resource": {
       "no-linked-resources": "No attached resources",
       "change-resources": "Change attached resources",
       "self": "Attach to resources",
-      "label": "You can apply the SQL review policy to environments or projects. The database will use the project-level policy if exists, or fallback to the environment-level policy.",
+      "label": "You can apply the SQL review policy to environments or projects. The database will use the project-level policy if it exists, or fallback to the environment-level policy.",
       "label-environment": "The SQL review policy will affect all databases belonging to the selected environment.",
       "label-project": "The SQL review policy will affect all databases belonging to the selected project. This will supersede the database environment-level policy.",
       "override-warning": "Following resources already bound with other SQL review policies. Click \"{button}\" will override the config."
@@ -2186,7 +2208,16 @@
     "enabled-rules": "Enabled rules",
     "rule-detail": "Rule detail",
     "view-definition": "View definition",
-    "all-checks-passed": "All checkes passed."
+    "all-checks-passed": "All checkes passed.",
+    "category": {
+      "builtin": "Built-in"
+    },
+    "level": {
+      "name": "Level",
+      "error": "Error",
+      "warning": "Warning",
+      "disabled": "Disabled"
+    }
   },
   "audit-log": {
     "export-finished": "Export finished",
@@ -2622,12 +2653,31 @@
     "change-type": "Change type"
   },
   "release": {
+    "title": "Release",
     "releases": "Releases",
     "files": "Files",
     "create": "Create release",
     "select": "Select release",
     "archive-this-release": "Archive this release",
     "total-files": "Total {count} files",
+    "plan-tip": "This plan is configured to use a release. Database changes will be executed using the SQL statements from the selected release files.",
+    "not-found": "Not found",
+    "vcs-source": "VCS Source",
+    "view-all-files": "View all files",
+    "and-n-more-files": "and {n} more files",
+    "change-type": {
+      "ddl": "DDL",
+      "ddl-ghost": "DDL Ghost",
+      "dml": "DML",
+      "unspecified": "Unspecified"
+    },
+    "file-type": {
+      "versioned": "Versioned",
+      "unspecified": "Unspecified"
+    },
+    "vcs-type": {
+      "unspecified": "Unspecified"
+    },
     "actions": {
       "new-file": "New file",
       "import-from-release": "Import from release"

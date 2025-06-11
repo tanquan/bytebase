@@ -115,36 +115,35 @@
 </template>
 
 <script lang="ts" setup>
-import { Info } from "lucide-vue-next";
-import {
-  darkTheme,
-  NConfigProvider,
-  NTabs,
-  NTabPane,
-  NTooltip,
-} from "naive-ui";
-import { Status } from "nice-grpc-common";
-import { computed, ref, toRef } from "vue";
-import { useI18n } from "vue-i18n";
 import { darkThemeOverrides } from "@/../naive-ui.config";
 import { BBSpin } from "@/bbkit";
 import SyncDatabaseButton from "@/components/DatabaseDetail/SyncDatabaseButton.vue";
 import { parseStringToResource } from "@/components/GrantRequestPanel/DatabaseResourceForm/common";
 import { Drawer } from "@/components/v2";
 import {
-  hasFeature,
   useAppFeature,
   useConnectionOfCurrentSQLEditorTab,
-  usePolicyV1Store,
+  usePolicyV1Store
 } from "@/store";
 import type {
   ComposedDatabase,
+  DatabaseResource,
   SQLEditorQueryParams,
   SQLResultSetV1,
-  DatabaseResource,
 } from "@/types";
 import { PolicyType } from "@/types/proto/v1/org_policy_service";
 import { hasWorkspacePermissionV2 } from "@/utils";
+import { Info } from "lucide-vue-next";
+import {
+  darkTheme,
+  NConfigProvider,
+  NTabPane,
+  NTabs,
+  NTooltip,
+} from "naive-ui";
+import { Status } from "nice-grpc-common";
+import { computed, ref, toRef } from "vue";
+import { useI18n } from "vue-i18n";
 import DetailPanel from "./DetailPanel";
 import EmptyView from "./EmptyView.vue";
 import ErrorView from "./ErrorView";
@@ -210,9 +209,7 @@ const missingResource = computed((): DatabaseResource | undefined => {
 });
 
 const showRequestQueryButton = computed(() => {
-  // Developer self-helped request query is guarded by "Access Control" feature
   return (
-    hasFeature("bb.feature.access-control") &&
     !disallowRequestQuery.value &&
     missingResource.value
   );

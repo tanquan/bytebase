@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/bytebase/bytebase/backend/base"
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/component/config"
 	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
@@ -45,24 +44,6 @@ func (s *SubscriptionService) GetSubscription(ctx context.Context, _ *v1pb.GetSu
 	return s.loadSubscription(ctx)
 }
 
-// GetFeatureMatrix gets the feature metric.
-func (*SubscriptionService) GetFeatureMatrix(_ context.Context, _ *v1pb.GetFeatureMatrixRequest) (*v1pb.FeatureMatrix, error) {
-	resp := &v1pb.FeatureMatrix{}
-	for key, val := range base.FeatureMatrix {
-		matrix := map[string]bool{}
-		for i, enabled := range val {
-			plan := covertToV1PlanType(base.PlanType(i))
-			matrix[plan.String()] = enabled
-		}
-		resp.Features = append(resp.Features, &v1pb.Feature{
-			Name:   string(key),
-			Matrix: matrix,
-		})
-	}
-
-	return resp, nil
-}
-
 // UpdateSubscription updates the subscription license.
 func (s *SubscriptionService) UpdateSubscription(ctx context.Context, request *v1pb.UpdateSubscriptionRequest) (*v1pb.Subscription, error) {
 	principalID, ok := ctx.Value(common.PrincipalIDContextKey).(int)
@@ -88,28 +69,15 @@ func (s *SubscriptionService) loadSubscription(ctx context.Context) (*v1pb.Subsc
 	subscription := &v1pb.Subscription{
 		SeatCount:     int32(sub.Seat),
 		InstanceCount: int32(sub.InstanceCount),
-		Plan:          covertToV1PlanType(sub.Plan),
+		Plan:          sub.Plan,
 		Trialing:      sub.Trialing,
 		OrgId:         sub.OrgID,
 		OrgName:       sub.OrgName,
 	}
-	if sub.Plan != base.FREE {
+	if sub.Plan != v1pb.PlanType_FREE {
 		subscription.ExpiresTime = timestamppb.New(time.Unix(sub.ExpiresTS, 0))
 		subscription.StartedTime = timestamppb.New(time.Unix(sub.StartedTS, 0))
 	}
 
 	return subscription, nil
-}
-
-func covertToV1PlanType(planType base.PlanType) v1pb.PlanType {
-	switch planType {
-	case base.FREE:
-		return v1pb.PlanType_FREE
-	case base.TEAM:
-		return v1pb.PlanType_TEAM
-	case base.ENTERPRISE:
-		return v1pb.PlanType_ENTERPRISE
-	default:
-		return v1pb.PlanType_PLAN_TYPE_UNSPECIFIED
-	}
 }

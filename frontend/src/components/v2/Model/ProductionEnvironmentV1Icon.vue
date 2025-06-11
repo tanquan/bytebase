@@ -17,6 +17,7 @@ import { NTooltip } from "naive-ui";
 import { computed } from "vue";
 import { featureToRef } from "@/store";
 import type { Environment } from "@/types/v1/environment";
+import { PlanFeature } from "@/types/proto/v1/subscription_service";
 
 const props = withDefaults(
   defineProps<{
@@ -29,7 +30,7 @@ const props = withDefaults(
 );
 
 const hasEnvironmentTierPolicyFeature = featureToRef(
-  "bb.feature.environment-tier-policy"
+  PlanFeature.FEATURE_ENVIRONMENT_TIERS
 );
 
 const enabled = computed((): boolean => {

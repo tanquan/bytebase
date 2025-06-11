@@ -35,7 +35,6 @@
               @click="state.showSchemaTemplateDrawer = true"
             >
               <template #icon>
-                <FeatureBadge feature="bb.feature.schema-template" />
                 <PlusIcon class="w-4 h-4" />
               </template>
               {{ $t("schema-editor.actions.add-from-template") }}
@@ -140,23 +139,11 @@
       </div>
     </DrawerContent>
   </Drawer>
-
-  <FeatureModal
-    feature="bb.feature.schema-template"
-    :open="state.showFeatureModal"
-    @cancel="state.showFeatureModal = false"
-  />
 </template>
 
 <script lang="ts" setup>
-import { cloneDeep, head, sumBy } from "lodash-es";
-import { PlusIcon } from "lucide-vue-next";
-import { NButton, NSelect, NTooltip } from "naive-ui";
-import { computed, nextTick, reactive, watch } from "vue";
-import { FeatureBadge, FeatureModal } from "@/components/FeatureGuard";
 import SchemaDiagram, { SchemaDiagramIcon } from "@/components/SchemaDiagram";
 import { Drawer, DrawerContent } from "@/components/v2";
-import { hasFeature } from "@/store";
 import type { ComposedDatabase } from "@/types";
 import { Engine } from "@/types/proto/v1/common";
 import type {
@@ -167,6 +154,10 @@ import type {
 } from "@/types/proto/v1/database_service";
 import type { SchemaTemplateSetting_TableTemplate } from "@/types/proto/v1/setting_service";
 import TableTemplates from "@/views/SchemaTemplate/TableTemplates.vue";
+import { cloneDeep, head, sumBy } from "lodash-es";
+import { PlusIcon } from "lucide-vue-next";
+import { NButton, NSelect, NTooltip } from "naive-ui";
+import { computed, nextTick, reactive, watch } from "vue";
 import TableNameModal from "../Modals/TableNameModal.vue";
 import { useSchemaEditorContext } from "../context";
 import TableList from "./TableList";
@@ -340,10 +331,6 @@ const tryEditColumn = async (
 
 const handleApplyTemplate = (template: SchemaTemplateSetting_TableTemplate) => {
   state.showSchemaTemplateDrawer = false;
-  if (!hasFeature("bb.feature.schema-template")) {
-    state.showFeatureModal = true;
-    return;
-  }
   if (!template.table) {
     return;
   }

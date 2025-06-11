@@ -496,24 +496,6 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
-    /v1/feature:
-        get:
-            tags:
-                - SubscriptionService
-            operationId: SubscriptionService_GetFeatureMatrix
-            responses:
-                "200":
-                    description: OK
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/FeatureMatrix'
-                default:
-                    description: Default error response
-                    content:
-                        application/json:
-                            schema:
-                                $ref: '#/components/schemas/Status'
     /v1/groups:
         get:
             tags:
@@ -9984,24 +9966,6 @@ components:
 
                          This results from the macro `has(request.auth)`.
             description: A field selection expression. e.g. `request.auth`.
-        Feature:
-            type: object
-            properties:
-                name:
-                    type: string
-                    description: Name is the feature name.
-                matrix:
-                    type: object
-                    additionalProperties:
-                        type: boolean
-                    description: Matrix is the feature matrix for different plan. The key is the plan enum in string value.
-        FeatureMatrix:
-            type: object
-            properties:
-                features:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/Feature'
         FieldMapping:
             type: object
             properties:
@@ -11956,15 +11920,6 @@ components:
                 path:
                     type: string
                     description: The path of the file. e.g. `2.2/V0001_create_table.sql`.
-                sheet:
-                    type: string
-                    description: |-
-                        The sheet that holds the content.
-                         Format: projects/{project}/sheets/{sheet}
-                sheetSha256:
-                    readOnly: true
-                    type: string
-                    description: The SHA256 hash value of the sheet.
                 type:
                     enum:
                         - TYPE_UNSPECIFIED
@@ -11981,13 +11936,26 @@ components:
                         - DML
                     type: string
                     format: enum
+                sheet:
+                    type: string
+                    description: |-
+                        For inputs, we must either use `sheet` or `statement`.
+                         For outputs, we always use `sheet`. `statement` is the preview of the sheet content.
+
+                         The sheet that holds the content.
+                         Format: projects/{project}/sheets/{sheet}
                 statement:
                     type: string
-                    description: The statement is used for preview or check purpose.
+                    description: The raw SQL statement content.
                     format: bytes
+                sheetSha256:
+                    readOnly: true
+                    type: string
+                    description: The SHA256 hash value of the sheet content or the statement.
                 statementSize:
                     readOnly: true
                     type: string
+                    description: The size of the statement in bytes.
         Release_VCSSource:
             type: object
             properties:
@@ -12421,6 +12389,12 @@ components:
                     description: |-
                         The plan to run plan checks.
                          Format: projects/{project}/plans/{plan}
+                specId:
+                    type: string
+                    description: |-
+                        The UUID of the specific spec to run plan checks for.
+                         This should match the spec.id field in Plan.Spec.
+                         If not set, all specs in the plan will be used.
         RunPlanChecksResponse:
             type: object
             properties: {}

@@ -10,13 +10,6 @@
             {{ statementTitle }}
           </span>
           <span v-if="isCreating" class="text-red-600">*</span>
-          <NButton
-            v-if="!isCreating && !hasFeature('bb.feature.sql-review')"
-            size="small"
-            @click.prevent="state.showFeatureModal = true"
-          >
-            🎈{{ $t("sql-review.unlock-full-feature") }}
-          </NButton>
         </div>
       </div>
       <div class="flex items-center justify-end gap-x-2">
@@ -115,7 +108,7 @@
         :readonly="isEditorReadonly"
         :dialect="dialect"
         :advices="isEditorReadonly || isCreating ? markers : []"
-        :auto-height="{ min: 120, max: 240 }"
+        :auto-height="{ min: 160, max: 240 }"
         :auto-complete-context="{
           instance: database.instance,
           database: database.name,
@@ -174,12 +167,6 @@
       />
     </div>
   </BBModal>
-
-  <FeatureModal
-    :open="state.showFeatureModal"
-    feature="bb.feature.sql-review"
-    @cancel="state.showFeatureModal = false"
-  />
 </template>
 
 <script setup lang="ts">
@@ -191,7 +178,6 @@ import { v1 as uuidv1 } from "uuid";
 import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { BBAttention, BBModal } from "@/bbkit";
-import { FeatureModal } from "@/components/FeatureGuard";
 import { MonacoEditor } from "@/components/MonacoEditor";
 import { extensionNameOfLanguage } from "@/components/MonacoEditor/utils";
 import { ErrorList } from "@/components/Plan/components/common";
@@ -199,13 +185,13 @@ import {
   createEmptyLocalSheet,
   databaseEngineForSpec,
   databaseForSpec,
+  usePlanContext,
+  planCheckRunListForSpec,
 } from "@/components/Plan/logic";
-import { usePlanContext } from "@/components/Plan/logic";
 import DownloadSheetButton from "@/components/Sheet/DownloadSheetButton.vue";
 import SQLUploadButton from "@/components/misc/SQLUploadButton.vue";
 import { planServiceClient } from "@/grpcweb";
 import {
-  hasFeature,
   pushNotification,
   useCurrentProjectV1,
   useSheetV1Store,
@@ -215,29 +201,25 @@ import { dialectOfEngineV1 } from "@/types";
 import { Sheet } from "@/types/proto/v1/sheet_service";
 import {
   getSheetStatement,
+  getStatementSize,
   setSheetStatement,
   useInstanceV1EditorLanguage,
-  getStatementSize,
 } from "@/utils";
-import { usePlanSQLCheckContext } from "../../SQLCheckSection/context";
-import useSelectedSpec from "../../common/useSelectedSpec";
+import { usePlanSpecContext } from "../../SpecDetailView/context";
 import { useSQLAdviceMarkers } from "../useSQLAdviceMarkers";
 import type { EditState } from "./useTempEditState";
 import { useTempEditState } from "./useTempEditState";
 
 type LocalState = EditState & {
-  showFeatureModal: boolean;
   showEditorModal: boolean;
   isUploadingFile: boolean;
 };
 
 const { t } = useI18n();
 const dialog = useDialog();
-const context = usePlanContext();
 const { project } = useCurrentProjectV1();
-const { isCreating, plan, events } = context;
-const selectedSpec = useSelectedSpec();
-const { resultMap } = usePlanSQLCheckContext();
+const { isCreating, plan, events, planCheckRunList } = usePlanContext();
+const { selectedSpec } = usePlanSpecContext();
 const editorContainerElRef = ref<HTMLElement>();
 const monacoEditorRef = ref<InstanceType<typeof MonacoEditor>>();
 const { height: editorContainerHeight } = useElementSize(editorContainerElRef);
@@ -245,7 +227,6 @@ const { height: editorContainerHeight } = useElementSize(editorContainerElRef);
 const state = reactive<LocalState>({
   isEditing: false,
   statement: "",
-  showFeatureModal: false,
   showEditorModal: false,
   isUploadingFile: false,
 });
@@ -269,11 +250,13 @@ const dialect = computed((): SQLDialect => {
 const statementTitle = computed(() => {
   return language.value === "sql" ? t("common.sql") : t("common.statement");
 });
-const advices = computed(() => {
-  const database = databaseForSpec(project.value, selectedSpec.value);
-  return resultMap.value[database.name]?.advices || [];
-});
-const { markers } = useSQLAdviceMarkers(context, advices);
+const planCheckRunsForSelectedSpec = computed(() =>
+  planCheckRunListForSpec(planCheckRunList.value, selectedSpec.value)
+);
+const { markers } = useSQLAdviceMarkers(
+  isCreating,
+  planCheckRunsForSelectedSpec
+);
 
 /**
  * to set the MonacoEditor as readonly
@@ -425,7 +408,7 @@ const updateStatement = async (statement: string) => {
   });
   setSheetStatement(sheet, statement);
   const createdSheet = await useSheetV1Store().createSheet(
-    plan.value.project,
+    project.value.name,
     sheet
   );
 

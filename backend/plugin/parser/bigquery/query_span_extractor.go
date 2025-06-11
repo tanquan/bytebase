@@ -2,7 +2,7 @@ package bigquery
 
 import (
 	"context"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
@@ -536,8 +536,14 @@ func (q *querySpanExtractor) starModify(fields []base.QuerySpanResult, starModif
 	for _, fieldItem := range fieldItemMap {
 		fieldItems = append(fieldItems, fieldItem)
 	}
-	sort.Slice(fieldItems, func(i, j int) bool {
-		return fieldItems[i].id < fieldItems[j].id
+	slices.SortFunc(fieldItems, func(i, j fieldItem) int {
+		if i.id < j.id {
+			return -1
+		}
+		if i.id > j.id {
+			return 1
+		}
+		return 0
 	})
 
 	var result []base.QuerySpanResult
@@ -1139,7 +1145,7 @@ func (q *querySpanExtractor) findTableSchema(datasetName string, tableName strin
 		Server:   "",
 		Database: datasetName,
 		Schema:   "",
-		Name:     tableName,
+		Name:     table.GetProto().Name,
 		Columns:  columns,
 	}, nil
 }

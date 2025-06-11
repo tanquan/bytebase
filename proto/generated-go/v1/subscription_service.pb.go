@@ -75,6 +75,273 @@ func (PlanType) EnumDescriptor() ([]byte, []int) {
 	return file_v1_subscription_service_proto_rawDescGZIP(), []int{0}
 }
 
+// PlanFeature represents the available features in Bytebase
+type PlanFeature int32
+
+const (
+	PlanFeature_FEATURE_UNSPECIFIED PlanFeature = 0
+	// Database Change Management
+	PlanFeature_FEATURE_DATABASE_CHANGE                      PlanFeature = 1
+	PlanFeature_FEATURE_GIT_BASED_SCHEMA_VERSION_CONTROL     PlanFeature = 2
+	PlanFeature_FEATURE_DECLARATIVE_SCHEMA_MIGRATION         PlanFeature = 3
+	PlanFeature_FEATURE_COMPARE_AND_SYNC_SCHEMA              PlanFeature = 4
+	PlanFeature_FEATURE_ONLINE_SCHEMA_CHANGE                 PlanFeature = 5
+	PlanFeature_FEATURE_PRE_DEPLOYMENT_SQL_REVIEW            PlanFeature = 6
+	PlanFeature_FEATURE_AUTOMATIC_BACKUP_BEFORE_DATA_CHANGES PlanFeature = 7
+	PlanFeature_FEATURE_ONE_CLICK_DATA_ROLLBACK              PlanFeature = 8
+	PlanFeature_FEATURE_MULTI_DATABASE_BATCH_CHANGES         PlanFeature = 9
+	PlanFeature_FEATURE_PROGRESSIVE_ENVIRONMENT_DEPLOYMENT   PlanFeature = 10
+	PlanFeature_FEATURE_SCHEDULED_ROLLOUT_TIME               PlanFeature = 11
+	PlanFeature_FEATURE_DATABASE_CHANGELOG                   PlanFeature = 12
+	PlanFeature_FEATURE_SCHEMA_DRIFT_DETECTION               PlanFeature = 13
+	PlanFeature_FEATURE_CHANGELIST                           PlanFeature = 14
+	PlanFeature_FEATURE_SCHEMA_TEMPLATE                      PlanFeature = 15
+	PlanFeature_FEATURE_ROLLOUT_POLICY                       PlanFeature = 16
+	// SQL Editor & Development
+	PlanFeature_FEATURE_WEB_BASED_SQL_EDITOR           PlanFeature = 17
+	PlanFeature_FEATURE_SQL_EDITOR_ADMIN_MODE          PlanFeature = 18
+	PlanFeature_FEATURE_NATURAL_LANGUAGE_TO_SQL        PlanFeature = 19
+	PlanFeature_FEATURE_AI_QUERY_EXPLANATION           PlanFeature = 20
+	PlanFeature_FEATURE_AI_QUERY_SUGGESTIONS           PlanFeature = 21
+	PlanFeature_FEATURE_AUTO_COMPLETE                  PlanFeature = 22
+	PlanFeature_FEATURE_SCHEMA_DIAGRAM                 PlanFeature = 23
+	PlanFeature_FEATURE_SCHEMA_EDITOR                  PlanFeature = 24
+	PlanFeature_FEATURE_DATA_EXPORT                    PlanFeature = 25
+	PlanFeature_FEATURE_QUERY_HISTORY                  PlanFeature = 26
+	PlanFeature_FEATURE_SAVED_AND_SHARED_SQL_SCRIPTS   PlanFeature = 27
+	PlanFeature_FEATURE_SQL_EDITOR_DDL_DML_RESTRICTION PlanFeature = 28
+	PlanFeature_FEATURE_BATCH_QUERY                    PlanFeature = 29
+	PlanFeature_FEATURE_INSTANCE_READ_ONLY_CONNECTION  PlanFeature = 30
+	PlanFeature_FEATURE_QUERY_POLICY                   PlanFeature = 31
+	PlanFeature_FEATURE_RESTRICT_COPYING_DATA          PlanFeature = 32
+	// Security & Compliance
+	PlanFeature_FEATURE_IAM                                    PlanFeature = 33
+	PlanFeature_FEATURE_INSTANCE_SSL_CONNECTION                PlanFeature = 34
+	PlanFeature_FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL    PlanFeature = 35
+	PlanFeature_FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION PlanFeature = 36
+	PlanFeature_FEATURE_GOOGLE_AND_GITHUB_SSO                  PlanFeature = 37
+	PlanFeature_FEATURE_USER_GROUPS                            PlanFeature = 38
+	PlanFeature_FEATURE_DISALLOW_SELF_SERVICE_SIGNUP           PlanFeature = 39
+	PlanFeature_FEATURE_DATABASE_SECRET_VARIABLES              PlanFeature = 40
+	PlanFeature_FEATURE_QUERY_DATASOURCE_RESTRICTION           PlanFeature = 41
+	PlanFeature_FEATURE_CUSTOM_INSTANCE_SYNC_TIME              PlanFeature = 42
+	PlanFeature_FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT       PlanFeature = 43
+	PlanFeature_FEATURE_RISK_ASSESSMENT                        PlanFeature = 44
+	PlanFeature_FEATURE_APPROVAL_WORKFLOW                      PlanFeature = 45
+	PlanFeature_FEATURE_AUDIT_LOG                              PlanFeature = 46
+	PlanFeature_FEATURE_ENTERPRISE_SSO                         PlanFeature = 47
+	PlanFeature_FEATURE_TWO_FA                                 PlanFeature = 48
+	PlanFeature_FEATURE_PASSWORD_RESTRICTIONS                  PlanFeature = 49
+	PlanFeature_FEATURE_DISALLOW_PASSWORD_SIGNIN               PlanFeature = 50
+	PlanFeature_FEATURE_CUSTOM_ROLES                           PlanFeature = 51
+	PlanFeature_FEATURE_REQUEST_ROLE_WORKFLOW                  PlanFeature = 52
+	PlanFeature_FEATURE_DATA_MASKING                           PlanFeature = 53
+	PlanFeature_FEATURE_DATA_CLASSIFICATION                    PlanFeature = 54
+	PlanFeature_FEATURE_SCIM                                   PlanFeature = 55
+	PlanFeature_FEATURE_DIRECTORY_SYNC                         PlanFeature = 56
+	PlanFeature_FEATURE_SIGN_IN_FREQUENCY_CONTROL              PlanFeature = 57
+	PlanFeature_FEATURE_EXTERNAL_SECRET_MANAGER                PlanFeature = 58
+	PlanFeature_FEATURE_USER_EMAIL_DOMAIN_RESTRICTION          PlanFeature = 59
+	// Administration & Support
+	PlanFeature_FEATURE_ENVIRONMENT_MANAGEMENT     PlanFeature = 60
+	PlanFeature_FEATURE_IM_NOTIFICATIONS           PlanFeature = 61
+	PlanFeature_FEATURE_TERRAFORM_PROVIDER         PlanFeature = 62
+	PlanFeature_FEATURE_DATABASE_GROUPS            PlanFeature = 63
+	PlanFeature_FEATURE_ENVIRONMENT_TIERS          PlanFeature = 64
+	PlanFeature_FEATURE_DASHBOARD_ANNOUNCEMENT     PlanFeature = 65
+	PlanFeature_FEATURE_API_INTEGRATION_GUIDANCE   PlanFeature = 66
+	PlanFeature_FEATURE_CUSTOM_LOGO                PlanFeature = 67
+	PlanFeature_FEATURE_WATERMARK                  PlanFeature = 68
+	PlanFeature_FEATURE_ROADMAP_PRIORITIZATION     PlanFeature = 69
+	PlanFeature_FEATURE_CUSTOM_MSA                 PlanFeature = 70
+	PlanFeature_FEATURE_COMMUNITY_SUPPORT          PlanFeature = 71
+	PlanFeature_FEATURE_EMAIL_SUPPORT              PlanFeature = 72
+	PlanFeature_FEATURE_DEDICATED_SUPPORT_WITH_SLA PlanFeature = 73
+)
+
+// Enum value maps for PlanFeature.
+var (
+	PlanFeature_name = map[int32]string{
+		0:  "FEATURE_UNSPECIFIED",
+		1:  "FEATURE_DATABASE_CHANGE",
+		2:  "FEATURE_GIT_BASED_SCHEMA_VERSION_CONTROL",
+		3:  "FEATURE_DECLARATIVE_SCHEMA_MIGRATION",
+		4:  "FEATURE_COMPARE_AND_SYNC_SCHEMA",
+		5:  "FEATURE_ONLINE_SCHEMA_CHANGE",
+		6:  "FEATURE_PRE_DEPLOYMENT_SQL_REVIEW",
+		7:  "FEATURE_AUTOMATIC_BACKUP_BEFORE_DATA_CHANGES",
+		8:  "FEATURE_ONE_CLICK_DATA_ROLLBACK",
+		9:  "FEATURE_MULTI_DATABASE_BATCH_CHANGES",
+		10: "FEATURE_PROGRESSIVE_ENVIRONMENT_DEPLOYMENT",
+		11: "FEATURE_SCHEDULED_ROLLOUT_TIME",
+		12: "FEATURE_DATABASE_CHANGELOG",
+		13: "FEATURE_SCHEMA_DRIFT_DETECTION",
+		14: "FEATURE_CHANGELIST",
+		15: "FEATURE_SCHEMA_TEMPLATE",
+		16: "FEATURE_ROLLOUT_POLICY",
+		17: "FEATURE_WEB_BASED_SQL_EDITOR",
+		18: "FEATURE_SQL_EDITOR_ADMIN_MODE",
+		19: "FEATURE_NATURAL_LANGUAGE_TO_SQL",
+		20: "FEATURE_AI_QUERY_EXPLANATION",
+		21: "FEATURE_AI_QUERY_SUGGESTIONS",
+		22: "FEATURE_AUTO_COMPLETE",
+		23: "FEATURE_SCHEMA_DIAGRAM",
+		24: "FEATURE_SCHEMA_EDITOR",
+		25: "FEATURE_DATA_EXPORT",
+		26: "FEATURE_QUERY_HISTORY",
+		27: "FEATURE_SAVED_AND_SHARED_SQL_SCRIPTS",
+		28: "FEATURE_SQL_EDITOR_DDL_DML_RESTRICTION",
+		29: "FEATURE_BATCH_QUERY",
+		30: "FEATURE_INSTANCE_READ_ONLY_CONNECTION",
+		31: "FEATURE_QUERY_POLICY",
+		32: "FEATURE_RESTRICT_COPYING_DATA",
+		33: "FEATURE_IAM",
+		34: "FEATURE_INSTANCE_SSL_CONNECTION",
+		35: "FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL",
+		36: "FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION",
+		37: "FEATURE_GOOGLE_AND_GITHUB_SSO",
+		38: "FEATURE_USER_GROUPS",
+		39: "FEATURE_DISALLOW_SELF_SERVICE_SIGNUP",
+		40: "FEATURE_DATABASE_SECRET_VARIABLES",
+		41: "FEATURE_QUERY_DATASOURCE_RESTRICTION",
+		42: "FEATURE_CUSTOM_INSTANCE_SYNC_TIME",
+		43: "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT",
+		44: "FEATURE_RISK_ASSESSMENT",
+		45: "FEATURE_APPROVAL_WORKFLOW",
+		46: "FEATURE_AUDIT_LOG",
+		47: "FEATURE_ENTERPRISE_SSO",
+		48: "FEATURE_TWO_FA",
+		49: "FEATURE_PASSWORD_RESTRICTIONS",
+		50: "FEATURE_DISALLOW_PASSWORD_SIGNIN",
+		51: "FEATURE_CUSTOM_ROLES",
+		52: "FEATURE_REQUEST_ROLE_WORKFLOW",
+		53: "FEATURE_DATA_MASKING",
+		54: "FEATURE_DATA_CLASSIFICATION",
+		55: "FEATURE_SCIM",
+		56: "FEATURE_DIRECTORY_SYNC",
+		57: "FEATURE_SIGN_IN_FREQUENCY_CONTROL",
+		58: "FEATURE_EXTERNAL_SECRET_MANAGER",
+		59: "FEATURE_USER_EMAIL_DOMAIN_RESTRICTION",
+		60: "FEATURE_ENVIRONMENT_MANAGEMENT",
+		61: "FEATURE_IM_NOTIFICATIONS",
+		62: "FEATURE_TERRAFORM_PROVIDER",
+		63: "FEATURE_DATABASE_GROUPS",
+		64: "FEATURE_ENVIRONMENT_TIERS",
+		65: "FEATURE_DASHBOARD_ANNOUNCEMENT",
+		66: "FEATURE_API_INTEGRATION_GUIDANCE",
+		67: "FEATURE_CUSTOM_LOGO",
+		68: "FEATURE_WATERMARK",
+		69: "FEATURE_ROADMAP_PRIORITIZATION",
+		70: "FEATURE_CUSTOM_MSA",
+		71: "FEATURE_COMMUNITY_SUPPORT",
+		72: "FEATURE_EMAIL_SUPPORT",
+		73: "FEATURE_DEDICATED_SUPPORT_WITH_SLA",
+	}
+	PlanFeature_value = map[string]int32{
+		"FEATURE_UNSPECIFIED":                            0,
+		"FEATURE_DATABASE_CHANGE":                        1,
+		"FEATURE_GIT_BASED_SCHEMA_VERSION_CONTROL":       2,
+		"FEATURE_DECLARATIVE_SCHEMA_MIGRATION":           3,
+		"FEATURE_COMPARE_AND_SYNC_SCHEMA":                4,
+		"FEATURE_ONLINE_SCHEMA_CHANGE":                   5,
+		"FEATURE_PRE_DEPLOYMENT_SQL_REVIEW":              6,
+		"FEATURE_AUTOMATIC_BACKUP_BEFORE_DATA_CHANGES":   7,
+		"FEATURE_ONE_CLICK_DATA_ROLLBACK":                8,
+		"FEATURE_MULTI_DATABASE_BATCH_CHANGES":           9,
+		"FEATURE_PROGRESSIVE_ENVIRONMENT_DEPLOYMENT":     10,
+		"FEATURE_SCHEDULED_ROLLOUT_TIME":                 11,
+		"FEATURE_DATABASE_CHANGELOG":                     12,
+		"FEATURE_SCHEMA_DRIFT_DETECTION":                 13,
+		"FEATURE_CHANGELIST":                             14,
+		"FEATURE_SCHEMA_TEMPLATE":                        15,
+		"FEATURE_ROLLOUT_POLICY":                         16,
+		"FEATURE_WEB_BASED_SQL_EDITOR":                   17,
+		"FEATURE_SQL_EDITOR_ADMIN_MODE":                  18,
+		"FEATURE_NATURAL_LANGUAGE_TO_SQL":                19,
+		"FEATURE_AI_QUERY_EXPLANATION":                   20,
+		"FEATURE_AI_QUERY_SUGGESTIONS":                   21,
+		"FEATURE_AUTO_COMPLETE":                          22,
+		"FEATURE_SCHEMA_DIAGRAM":                         23,
+		"FEATURE_SCHEMA_EDITOR":                          24,
+		"FEATURE_DATA_EXPORT":                            25,
+		"FEATURE_QUERY_HISTORY":                          26,
+		"FEATURE_SAVED_AND_SHARED_SQL_SCRIPTS":           27,
+		"FEATURE_SQL_EDITOR_DDL_DML_RESTRICTION":         28,
+		"FEATURE_BATCH_QUERY":                            29,
+		"FEATURE_INSTANCE_READ_ONLY_CONNECTION":          30,
+		"FEATURE_QUERY_POLICY":                           31,
+		"FEATURE_RESTRICT_COPYING_DATA":                  32,
+		"FEATURE_IAM":                                    33,
+		"FEATURE_INSTANCE_SSL_CONNECTION":                34,
+		"FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL":    35,
+		"FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION": 36,
+		"FEATURE_GOOGLE_AND_GITHUB_SSO":                  37,
+		"FEATURE_USER_GROUPS":                            38,
+		"FEATURE_DISALLOW_SELF_SERVICE_SIGNUP":           39,
+		"FEATURE_DATABASE_SECRET_VARIABLES":              40,
+		"FEATURE_QUERY_DATASOURCE_RESTRICTION":           41,
+		"FEATURE_CUSTOM_INSTANCE_SYNC_TIME":              42,
+		"FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT":       43,
+		"FEATURE_RISK_ASSESSMENT":                        44,
+		"FEATURE_APPROVAL_WORKFLOW":                      45,
+		"FEATURE_AUDIT_LOG":                              46,
+		"FEATURE_ENTERPRISE_SSO":                         47,
+		"FEATURE_TWO_FA":                                 48,
+		"FEATURE_PASSWORD_RESTRICTIONS":                  49,
+		"FEATURE_DISALLOW_PASSWORD_SIGNIN":               50,
+		"FEATURE_CUSTOM_ROLES":                           51,
+		"FEATURE_REQUEST_ROLE_WORKFLOW":                  52,
+		"FEATURE_DATA_MASKING":                           53,
+		"FEATURE_DATA_CLASSIFICATION":                    54,
+		"FEATURE_SCIM":                                   55,
+		"FEATURE_DIRECTORY_SYNC":                         56,
+		"FEATURE_SIGN_IN_FREQUENCY_CONTROL":              57,
+		"FEATURE_EXTERNAL_SECRET_MANAGER":                58,
+		"FEATURE_USER_EMAIL_DOMAIN_RESTRICTION":          59,
+		"FEATURE_ENVIRONMENT_MANAGEMENT":                 60,
+		"FEATURE_IM_NOTIFICATIONS":                       61,
+		"FEATURE_TERRAFORM_PROVIDER":                     62,
+		"FEATURE_DATABASE_GROUPS":                        63,
+		"FEATURE_ENVIRONMENT_TIERS":                      64,
+		"FEATURE_DASHBOARD_ANNOUNCEMENT":                 65,
+		"FEATURE_API_INTEGRATION_GUIDANCE":               66,
+		"FEATURE_CUSTOM_LOGO":                            67,
+		"FEATURE_WATERMARK":                              68,
+		"FEATURE_ROADMAP_PRIORITIZATION":                 69,
+		"FEATURE_CUSTOM_MSA":                             70,
+		"FEATURE_COMMUNITY_SUPPORT":                      71,
+		"FEATURE_EMAIL_SUPPORT":                          72,
+		"FEATURE_DEDICATED_SUPPORT_WITH_SLA":             73,
+	}
+)
+
+func (x PlanFeature) Enum() *PlanFeature {
+	p := new(PlanFeature)
+	*p = x
+	return p
+}
+
+func (x PlanFeature) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PlanFeature) Descriptor() protoreflect.EnumDescriptor {
+	return file_v1_subscription_service_proto_enumTypes[1].Descriptor()
+}
+
+func (PlanFeature) Type() protoreflect.EnumType {
+	return &file_v1_subscription_service_proto_enumTypes[1]
+}
+
+func (x PlanFeature) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PlanFeature.Descriptor instead.
+func (PlanFeature) EnumDescriptor() ([]byte, []int) {
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{1}
+}
+
 type GetSubscriptionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -111,42 +378,6 @@ func (*GetSubscriptionRequest) Descriptor() ([]byte, []int) {
 	return file_v1_subscription_service_proto_rawDescGZIP(), []int{0}
 }
 
-type GetFeatureMatrixRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetFeatureMatrixRequest) Reset() {
-	*x = GetFeatureMatrixRequest{}
-	mi := &file_v1_subscription_service_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetFeatureMatrixRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetFeatureMatrixRequest) ProtoMessage() {}
-
-func (x *GetFeatureMatrixRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetFeatureMatrixRequest.ProtoReflect.Descriptor instead.
-func (*GetFeatureMatrixRequest) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{1}
-}
-
 type UpdateSubscriptionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Patch         *PatchSubscription     `protobuf:"bytes,1,opt,name=patch,proto3" json:"patch,omitempty"`
@@ -156,7 +387,7 @@ type UpdateSubscriptionRequest struct {
 
 func (x *UpdateSubscriptionRequest) Reset() {
 	*x = UpdateSubscriptionRequest{}
-	mi := &file_v1_subscription_service_proto_msgTypes[2]
+	mi := &file_v1_subscription_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -168,7 +399,7 @@ func (x *UpdateSubscriptionRequest) String() string {
 func (*UpdateSubscriptionRequest) ProtoMessage() {}
 
 func (x *UpdateSubscriptionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[2]
+	mi := &file_v1_subscription_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -181,7 +412,7 @@ func (x *UpdateSubscriptionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSubscriptionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSubscriptionRequest) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{2}
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *UpdateSubscriptionRequest) GetPatch() *PatchSubscription {
@@ -200,7 +431,7 @@ type PatchSubscription struct {
 
 func (x *PatchSubscription) Reset() {
 	*x = PatchSubscription{}
-	mi := &file_v1_subscription_service_proto_msgTypes[3]
+	mi := &file_v1_subscription_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -212,7 +443,7 @@ func (x *PatchSubscription) String() string {
 func (*PatchSubscription) ProtoMessage() {}
 
 func (x *PatchSubscription) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[3]
+	mi := &file_v1_subscription_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -225,7 +456,7 @@ func (x *PatchSubscription) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PatchSubscription.ProtoReflect.Descriptor instead.
 func (*PatchSubscription) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{3}
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *PatchSubscription) GetLicense() string {
@@ -251,7 +482,7 @@ type Subscription struct {
 
 func (x *Subscription) Reset() {
 	*x = Subscription{}
-	mi := &file_v1_subscription_service_proto_msgTypes[4]
+	mi := &file_v1_subscription_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -263,7 +494,7 @@ func (x *Subscription) String() string {
 func (*Subscription) ProtoMessage() {}
 
 func (x *Subscription) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[4]
+	mi := &file_v1_subscription_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -276,7 +507,7 @@ func (x *Subscription) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Subscription.ProtoReflect.Descriptor instead.
 func (*Subscription) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{4}
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Subscription) GetSeatCount() int32 {
@@ -335,28 +566,30 @@ func (x *Subscription) GetOrgName() string {
 	return ""
 }
 
-type FeatureMatrix struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Features      []*Feature             `protobuf:"bytes,1,rep,name=features,proto3" json:"features,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+// PlanConfig represents the configuration for all plans loaded from plan.yaml
+type PlanConfig struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Plans            []*PlanLimitConfig     `protobuf:"bytes,1,rep,name=plans,proto3" json:"plans,omitempty"`
+	InstanceFeatures []PlanFeature          `protobuf:"varint,2,rep,packed,name=instance_features,json=instanceFeatures,proto3,enum=bytebase.v1.PlanFeature" json:"instance_features,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
-func (x *FeatureMatrix) Reset() {
-	*x = FeatureMatrix{}
-	mi := &file_v1_subscription_service_proto_msgTypes[5]
+func (x *PlanConfig) Reset() {
+	*x = PlanConfig{}
+	mi := &file_v1_subscription_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *FeatureMatrix) String() string {
+func (x *PlanConfig) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FeatureMatrix) ProtoMessage() {}
+func (*PlanConfig) ProtoMessage() {}
 
-func (x *FeatureMatrix) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[5]
+func (x *PlanConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_subscription_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -367,43 +600,51 @@ func (x *FeatureMatrix) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FeatureMatrix.ProtoReflect.Descriptor instead.
-func (*FeatureMatrix) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use PlanConfig.ProtoReflect.Descriptor instead.
+func (*PlanConfig) Descriptor() ([]byte, []int) {
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *FeatureMatrix) GetFeatures() []*Feature {
+func (x *PlanConfig) GetPlans() []*PlanLimitConfig {
 	if x != nil {
-		return x.Features
+		return x.Plans
 	}
 	return nil
 }
 
-type Feature struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name is the feature name.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Matrix is the feature matrix for different plan. The key is the plan enum in string value.
-	Matrix        map[string]bool `protobuf:"bytes,2,rep,name=matrix,proto3" json:"matrix,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+func (x *PlanConfig) GetInstanceFeatures() []PlanFeature {
+	if x != nil {
+		return x.InstanceFeatures
+	}
+	return nil
 }
 
-func (x *Feature) Reset() {
-	*x = Feature{}
-	mi := &file_v1_subscription_service_proto_msgTypes[6]
+// PlanLimitConfig represents a single plan's configuration
+type PlanLimitConfig struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Type                 PlanType               `protobuf:"varint,1,opt,name=type,proto3,enum=bytebase.v1.PlanType" json:"type,omitempty"`
+	MaximumInstanceCount int32                  `protobuf:"varint,2,opt,name=maximum_instance_count,json=maximumInstanceCount,proto3" json:"maximum_instance_count,omitempty"`
+	MaximumSeatCount     int32                  `protobuf:"varint,3,opt,name=maximum_seat_count,json=maximumSeatCount,proto3" json:"maximum_seat_count,omitempty"`
+	Features             []PlanFeature          `protobuf:"varint,4,rep,packed,name=features,proto3,enum=bytebase.v1.PlanFeature" json:"features,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *PlanLimitConfig) Reset() {
+	*x = PlanLimitConfig{}
+	mi := &file_v1_subscription_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Feature) String() string {
+func (x *PlanLimitConfig) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Feature) ProtoMessage() {}
+func (*PlanLimitConfig) ProtoMessage() {}
 
-func (x *Feature) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[6]
+func (x *PlanLimitConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_subscription_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -414,21 +655,35 @@ func (x *Feature) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Feature.ProtoReflect.Descriptor instead.
-func (*Feature) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{6}
+// Deprecated: Use PlanLimitConfig.ProtoReflect.Descriptor instead.
+func (*PlanLimitConfig) Descriptor() ([]byte, []int) {
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *Feature) GetName() string {
+func (x *PlanLimitConfig) GetType() PlanType {
 	if x != nil {
-		return x.Name
+		return x.Type
 	}
-	return ""
+	return PlanType_PLAN_TYPE_UNSPECIFIED
 }
 
-func (x *Feature) GetMatrix() map[string]bool {
+func (x *PlanLimitConfig) GetMaximumInstanceCount() int32 {
 	if x != nil {
-		return x.Matrix
+		return x.MaximumInstanceCount
+	}
+	return 0
+}
+
+func (x *PlanLimitConfig) GetMaximumSeatCount() int32 {
+	if x != nil {
+		return x.MaximumSeatCount
+	}
+	return 0
+}
+
+func (x *PlanLimitConfig) GetFeatures() []PlanFeature {
+	if x != nil {
+		return x.Features
 	}
 	return nil
 }
@@ -438,8 +693,7 @@ var File_v1_subscription_service_proto protoreflect.FileDescriptor
 const file_v1_subscription_service_proto_rawDesc = "" +
 	"\n" +
 	"\x1dv1/subscription_service.proto\x12\vbytebase.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13v1/annotation.proto\"\x18\n" +
-	"\x16GetSubscriptionRequest\"\x19\n" +
-	"\x17GetFeatureMatrixRequest\"Q\n" +
+	"\x16GetSubscriptionRequest\"Q\n" +
 	"\x19UpdateSubscriptionRequest\x124\n" +
 	"\x05patch\x18\x01 \x01(\v2\x1e.bytebase.v1.PatchSubscriptionR\x05patch\"-\n" +
 	"\x11PatchSubscription\x12\x18\n" +
@@ -453,24 +707,100 @@ const file_v1_subscription_service_proto_rawDesc = "" +
 	"\x04plan\x18\x05 \x01(\x0e2\x15.bytebase.v1.PlanTypeB\x04\xe2A\x01\x03R\x04plan\x12 \n" +
 	"\btrialing\x18\x06 \x01(\bB\x04\xe2A\x01\x03R\btrialing\x12\x1b\n" +
 	"\x06org_id\x18\a \x01(\tB\x04\xe2A\x01\x03R\x05orgId\x12\x1f\n" +
-	"\borg_name\x18\b \x01(\tB\x04\xe2A\x01\x03R\aorgName\"A\n" +
-	"\rFeatureMatrix\x120\n" +
-	"\bfeatures\x18\x01 \x03(\v2\x14.bytebase.v1.FeatureR\bfeatures\"\x92\x01\n" +
-	"\aFeature\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x128\n" +
-	"\x06matrix\x18\x02 \x03(\v2 .bytebase.v1.Feature.MatrixEntryR\x06matrix\x1a9\n" +
-	"\vMatrixEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01*I\n" +
+	"\borg_name\x18\b \x01(\tB\x04\xe2A\x01\x03R\aorgName\"\x87\x01\n" +
+	"\n" +
+	"PlanConfig\x122\n" +
+	"\x05plans\x18\x01 \x03(\v2\x1c.bytebase.v1.PlanLimitConfigR\x05plans\x12E\n" +
+	"\x11instance_features\x18\x02 \x03(\x0e2\x18.bytebase.v1.PlanFeatureR\x10instanceFeatures\"\xd6\x01\n" +
+	"\x0fPlanLimitConfig\x12)\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x15.bytebase.v1.PlanTypeR\x04type\x124\n" +
+	"\x16maximum_instance_count\x18\x02 \x01(\x05R\x14maximumInstanceCount\x12,\n" +
+	"\x12maximum_seat_count\x18\x03 \x01(\x05R\x10maximumSeatCount\x124\n" +
+	"\bfeatures\x18\x04 \x03(\x0e2\x18.bytebase.v1.PlanFeatureR\bfeatures*I\n" +
 	"\bPlanType\x12\x19\n" +
 	"\x15PLAN_TYPE_UNSPECIFIED\x10\x00\x12\b\n" +
 	"\x04FREE\x10\x01\x12\b\n" +
 	"\x04TEAM\x10\x02\x12\x0e\n" +
 	"\n" +
-	"ENTERPRISE\x10\x032\x95\x03\n" +
+	"ENTERPRISE\x10\x03*\xc4\x13\n" +
+	"\vPlanFeature\x12\x17\n" +
+	"\x13FEATURE_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17FEATURE_DATABASE_CHANGE\x10\x01\x12,\n" +
+	"(FEATURE_GIT_BASED_SCHEMA_VERSION_CONTROL\x10\x02\x12(\n" +
+	"$FEATURE_DECLARATIVE_SCHEMA_MIGRATION\x10\x03\x12#\n" +
+	"\x1fFEATURE_COMPARE_AND_SYNC_SCHEMA\x10\x04\x12 \n" +
+	"\x1cFEATURE_ONLINE_SCHEMA_CHANGE\x10\x05\x12%\n" +
+	"!FEATURE_PRE_DEPLOYMENT_SQL_REVIEW\x10\x06\x120\n" +
+	",FEATURE_AUTOMATIC_BACKUP_BEFORE_DATA_CHANGES\x10\a\x12#\n" +
+	"\x1fFEATURE_ONE_CLICK_DATA_ROLLBACK\x10\b\x12(\n" +
+	"$FEATURE_MULTI_DATABASE_BATCH_CHANGES\x10\t\x12.\n" +
+	"*FEATURE_PROGRESSIVE_ENVIRONMENT_DEPLOYMENT\x10\n" +
+	"\x12\"\n" +
+	"\x1eFEATURE_SCHEDULED_ROLLOUT_TIME\x10\v\x12\x1e\n" +
+	"\x1aFEATURE_DATABASE_CHANGELOG\x10\f\x12\"\n" +
+	"\x1eFEATURE_SCHEMA_DRIFT_DETECTION\x10\r\x12\x16\n" +
+	"\x12FEATURE_CHANGELIST\x10\x0e\x12\x1b\n" +
+	"\x17FEATURE_SCHEMA_TEMPLATE\x10\x0f\x12\x1a\n" +
+	"\x16FEATURE_ROLLOUT_POLICY\x10\x10\x12 \n" +
+	"\x1cFEATURE_WEB_BASED_SQL_EDITOR\x10\x11\x12!\n" +
+	"\x1dFEATURE_SQL_EDITOR_ADMIN_MODE\x10\x12\x12#\n" +
+	"\x1fFEATURE_NATURAL_LANGUAGE_TO_SQL\x10\x13\x12 \n" +
+	"\x1cFEATURE_AI_QUERY_EXPLANATION\x10\x14\x12 \n" +
+	"\x1cFEATURE_AI_QUERY_SUGGESTIONS\x10\x15\x12\x19\n" +
+	"\x15FEATURE_AUTO_COMPLETE\x10\x16\x12\x1a\n" +
+	"\x16FEATURE_SCHEMA_DIAGRAM\x10\x17\x12\x19\n" +
+	"\x15FEATURE_SCHEMA_EDITOR\x10\x18\x12\x17\n" +
+	"\x13FEATURE_DATA_EXPORT\x10\x19\x12\x19\n" +
+	"\x15FEATURE_QUERY_HISTORY\x10\x1a\x12(\n" +
+	"$FEATURE_SAVED_AND_SHARED_SQL_SCRIPTS\x10\x1b\x12*\n" +
+	"&FEATURE_SQL_EDITOR_DDL_DML_RESTRICTION\x10\x1c\x12\x17\n" +
+	"\x13FEATURE_BATCH_QUERY\x10\x1d\x12)\n" +
+	"%FEATURE_INSTANCE_READ_ONLY_CONNECTION\x10\x1e\x12\x18\n" +
+	"\x14FEATURE_QUERY_POLICY\x10\x1f\x12!\n" +
+	"\x1dFEATURE_RESTRICT_COPYING_DATA\x10 \x12\x0f\n" +
+	"\vFEATURE_IAM\x10!\x12#\n" +
+	"\x1fFEATURE_INSTANCE_SSL_CONNECTION\x10\"\x12/\n" +
+	"+FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL\x10#\x122\n" +
+	".FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION\x10$\x12!\n" +
+	"\x1dFEATURE_GOOGLE_AND_GITHUB_SSO\x10%\x12\x17\n" +
+	"\x13FEATURE_USER_GROUPS\x10&\x12(\n" +
+	"$FEATURE_DISALLOW_SELF_SERVICE_SIGNUP\x10'\x12%\n" +
+	"!FEATURE_DATABASE_SECRET_VARIABLES\x10(\x12(\n" +
+	"$FEATURE_QUERY_DATASOURCE_RESTRICTION\x10)\x12%\n" +
+	"!FEATURE_CUSTOM_INSTANCE_SYNC_TIME\x10*\x12,\n" +
+	"(FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT\x10+\x12\x1b\n" +
+	"\x17FEATURE_RISK_ASSESSMENT\x10,\x12\x1d\n" +
+	"\x19FEATURE_APPROVAL_WORKFLOW\x10-\x12\x15\n" +
+	"\x11FEATURE_AUDIT_LOG\x10.\x12\x1a\n" +
+	"\x16FEATURE_ENTERPRISE_SSO\x10/\x12\x12\n" +
+	"\x0eFEATURE_TWO_FA\x100\x12!\n" +
+	"\x1dFEATURE_PASSWORD_RESTRICTIONS\x101\x12$\n" +
+	" FEATURE_DISALLOW_PASSWORD_SIGNIN\x102\x12\x18\n" +
+	"\x14FEATURE_CUSTOM_ROLES\x103\x12!\n" +
+	"\x1dFEATURE_REQUEST_ROLE_WORKFLOW\x104\x12\x18\n" +
+	"\x14FEATURE_DATA_MASKING\x105\x12\x1f\n" +
+	"\x1bFEATURE_DATA_CLASSIFICATION\x106\x12\x10\n" +
+	"\fFEATURE_SCIM\x107\x12\x1a\n" +
+	"\x16FEATURE_DIRECTORY_SYNC\x108\x12%\n" +
+	"!FEATURE_SIGN_IN_FREQUENCY_CONTROL\x109\x12#\n" +
+	"\x1fFEATURE_EXTERNAL_SECRET_MANAGER\x10:\x12)\n" +
+	"%FEATURE_USER_EMAIL_DOMAIN_RESTRICTION\x10;\x12\"\n" +
+	"\x1eFEATURE_ENVIRONMENT_MANAGEMENT\x10<\x12\x1c\n" +
+	"\x18FEATURE_IM_NOTIFICATIONS\x10=\x12\x1e\n" +
+	"\x1aFEATURE_TERRAFORM_PROVIDER\x10>\x12\x1b\n" +
+	"\x17FEATURE_DATABASE_GROUPS\x10?\x12\x1d\n" +
+	"\x19FEATURE_ENVIRONMENT_TIERS\x10@\x12\"\n" +
+	"\x1eFEATURE_DASHBOARD_ANNOUNCEMENT\x10A\x12$\n" +
+	" FEATURE_API_INTEGRATION_GUIDANCE\x10B\x12\x17\n" +
+	"\x13FEATURE_CUSTOM_LOGO\x10C\x12\x15\n" +
+	"\x11FEATURE_WATERMARK\x10D\x12\"\n" +
+	"\x1eFEATURE_ROADMAP_PRIORITIZATION\x10E\x12\x16\n" +
+	"\x12FEATURE_CUSTOM_MSA\x10F\x12\x1d\n" +
+	"\x19FEATURE_COMMUNITY_SUPPORT\x10G\x12\x19\n" +
+	"\x15FEATURE_EMAIL_SUPPORT\x10H\x12&\n" +
+	"\"FEATURE_DEDICATED_SUPPORT_WITH_SLA\x10I2\xa3\x02\n" +
 	"\x13SubscriptionService\x12r\n" +
-	"\x0fGetSubscription\x12#.bytebase.v1.GetSubscriptionRequest\x1a\x19.bytebase.v1.Subscription\"\x1f\xdaA\x00\x80\xea0\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/subscription\x12p\n" +
-	"\x10GetFeatureMatrix\x12$.bytebase.v1.GetFeatureMatrixRequest\x1a\x1a.bytebase.v1.FeatureMatrix\"\x1a\xdaA\x00\x80\xea0\x01\x82\xd3\xe4\x93\x02\r\x12\v/v1/feature\x12\x97\x01\n" +
+	"\x0fGetSubscription\x12#.bytebase.v1.GetSubscriptionRequest\x1a\x19.bytebase.v1.Subscription\"\x1f\xdaA\x00\x80\xea0\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/subscription\x12\x97\x01\n" +
 	"\x12UpdateSubscription\x12&.bytebase.v1.UpdateSubscriptionRequest\x1a\x19.bytebase.v1.Subscription\">\xdaA\x05patch\x8a\xea0\x0fbb.settings.set\x90\xea0\x01\x82\xd3\xe4\x93\x02\x19:\x05patch2\x10/v1/subscriptionB\x11Z\x0fgenerated-go/v1b\x06proto3"
 
 var (
@@ -485,38 +815,37 @@ func file_v1_subscription_service_proto_rawDescGZIP() []byte {
 	return file_v1_subscription_service_proto_rawDescData
 }
 
-var file_v1_subscription_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_v1_subscription_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_v1_subscription_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_v1_subscription_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_v1_subscription_service_proto_goTypes = []any{
 	(PlanType)(0),                     // 0: bytebase.v1.PlanType
-	(*GetSubscriptionRequest)(nil),    // 1: bytebase.v1.GetSubscriptionRequest
-	(*GetFeatureMatrixRequest)(nil),   // 2: bytebase.v1.GetFeatureMatrixRequest
+	(PlanFeature)(0),                  // 1: bytebase.v1.PlanFeature
+	(*GetSubscriptionRequest)(nil),    // 2: bytebase.v1.GetSubscriptionRequest
 	(*UpdateSubscriptionRequest)(nil), // 3: bytebase.v1.UpdateSubscriptionRequest
 	(*PatchSubscription)(nil),         // 4: bytebase.v1.PatchSubscription
 	(*Subscription)(nil),              // 5: bytebase.v1.Subscription
-	(*FeatureMatrix)(nil),             // 6: bytebase.v1.FeatureMatrix
-	(*Feature)(nil),                   // 7: bytebase.v1.Feature
-	nil,                               // 8: bytebase.v1.Feature.MatrixEntry
-	(*timestamppb.Timestamp)(nil),     // 9: google.protobuf.Timestamp
+	(*PlanConfig)(nil),                // 6: bytebase.v1.PlanConfig
+	(*PlanLimitConfig)(nil),           // 7: bytebase.v1.PlanLimitConfig
+	(*timestamppb.Timestamp)(nil),     // 8: google.protobuf.Timestamp
 }
 var file_v1_subscription_service_proto_depIdxs = []int32{
-	4, // 0: bytebase.v1.UpdateSubscriptionRequest.patch:type_name -> bytebase.v1.PatchSubscription
-	9, // 1: bytebase.v1.Subscription.expires_time:type_name -> google.protobuf.Timestamp
-	9, // 2: bytebase.v1.Subscription.started_time:type_name -> google.protobuf.Timestamp
-	0, // 3: bytebase.v1.Subscription.plan:type_name -> bytebase.v1.PlanType
-	7, // 4: bytebase.v1.FeatureMatrix.features:type_name -> bytebase.v1.Feature
-	8, // 5: bytebase.v1.Feature.matrix:type_name -> bytebase.v1.Feature.MatrixEntry
-	1, // 6: bytebase.v1.SubscriptionService.GetSubscription:input_type -> bytebase.v1.GetSubscriptionRequest
-	2, // 7: bytebase.v1.SubscriptionService.GetFeatureMatrix:input_type -> bytebase.v1.GetFeatureMatrixRequest
-	3, // 8: bytebase.v1.SubscriptionService.UpdateSubscription:input_type -> bytebase.v1.UpdateSubscriptionRequest
-	5, // 9: bytebase.v1.SubscriptionService.GetSubscription:output_type -> bytebase.v1.Subscription
-	6, // 10: bytebase.v1.SubscriptionService.GetFeatureMatrix:output_type -> bytebase.v1.FeatureMatrix
-	5, // 11: bytebase.v1.SubscriptionService.UpdateSubscription:output_type -> bytebase.v1.Subscription
-	9, // [9:12] is the sub-list for method output_type
-	6, // [6:9] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	4,  // 0: bytebase.v1.UpdateSubscriptionRequest.patch:type_name -> bytebase.v1.PatchSubscription
+	8,  // 1: bytebase.v1.Subscription.expires_time:type_name -> google.protobuf.Timestamp
+	8,  // 2: bytebase.v1.Subscription.started_time:type_name -> google.protobuf.Timestamp
+	0,  // 3: bytebase.v1.Subscription.plan:type_name -> bytebase.v1.PlanType
+	7,  // 4: bytebase.v1.PlanConfig.plans:type_name -> bytebase.v1.PlanLimitConfig
+	1,  // 5: bytebase.v1.PlanConfig.instance_features:type_name -> bytebase.v1.PlanFeature
+	0,  // 6: bytebase.v1.PlanLimitConfig.type:type_name -> bytebase.v1.PlanType
+	1,  // 7: bytebase.v1.PlanLimitConfig.features:type_name -> bytebase.v1.PlanFeature
+	2,  // 8: bytebase.v1.SubscriptionService.GetSubscription:input_type -> bytebase.v1.GetSubscriptionRequest
+	3,  // 9: bytebase.v1.SubscriptionService.UpdateSubscription:input_type -> bytebase.v1.UpdateSubscriptionRequest
+	5,  // 10: bytebase.v1.SubscriptionService.GetSubscription:output_type -> bytebase.v1.Subscription
+	5,  // 11: bytebase.v1.SubscriptionService.UpdateSubscription:output_type -> bytebase.v1.Subscription
+	10, // [10:12] is the sub-list for method output_type
+	8,  // [8:10] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_v1_subscription_service_proto_init() }
@@ -530,8 +859,8 @@ func file_v1_subscription_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_subscription_service_proto_rawDesc), len(file_v1_subscription_service_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   8,
+			NumEnums:      2,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

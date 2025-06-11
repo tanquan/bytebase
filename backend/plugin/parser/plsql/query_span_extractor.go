@@ -2,7 +2,7 @@ package plsql
 
 import (
 	"context"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
@@ -1336,7 +1336,7 @@ func (q *querySpanExtractor) findTableSchemaInMetadata(instanceID string, dbSche
 		return &base.PhysicalTable{
 			Server:   "",
 			Database: databaseName,
-			Name:     tableName,
+			Name:     table.GetProto().Name,
 			Columns:  columns,
 		}, nil
 	}
@@ -1349,7 +1349,7 @@ func (q *querySpanExtractor) findTableSchemaInMetadata(instanceID string, dbSche
 		return &base.PhysicalTable{
 			Server:   "",
 			Database: databaseName,
-			Name:     tableName,
+			Name:     foreignTable.GetProto().Name,
 			Columns:  columns,
 		}, nil
 	}
@@ -1361,7 +1361,7 @@ func (q *querySpanExtractor) findTableSchemaInMetadata(instanceID string, dbSche
 			return nil, err
 		}
 		return &base.PseudoTable{
-			Name:    tableName,
+			Name:    view.GetProto().Name,
 			Columns: columns,
 		}, nil
 	}
@@ -1373,7 +1373,7 @@ func (q *querySpanExtractor) findTableSchemaInMetadata(instanceID string, dbSche
 			return nil, err
 		}
 		return &base.PseudoTable{
-			Name:    tableName,
+			Name:    materializedView.GetProto().Name,
 			Columns: columns,
 		}, nil
 	}
@@ -1681,8 +1681,14 @@ func getAccessTables(currentDatabase string, tree antlr.Tree) ([]base.SchemaReso
 		result = append(result, resource)
 	}
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].String() < result[j].String()
+	slices.SortFunc(result, func(a, b base.SchemaResource) int {
+		if a.String() < b.String() {
+			return -1
+		}
+		if a.String() > b.String() {
+			return 1
+		}
+		return 0
 	})
 
 	return result, nil

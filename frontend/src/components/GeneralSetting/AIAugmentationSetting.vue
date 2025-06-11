@@ -5,7 +5,6 @@
         <h1 class="text-2xl font-bold">
           {{ title }}
         </h1>
-        <FeatureBadge feature="bb.feature.ai-assistant" />
       </div>
       <span v-if="!allowEdit" class="text-sm text-gray-400">
         {{ $t("settings.general.workspace.only-admin-can-edit") }}
@@ -18,7 +17,7 @@
             <Switch
               v-model:value="state.enabled"
               :text="true"
-              :disabled="!allowEdit || !hasAIFeature"
+              :disabled="!allowEdit"
               @update:value="toggleAIEnabled"
             />
             <span class="font-medium">
@@ -48,7 +47,7 @@
               style="width: 12rem"
               v-model:value="state.provider"
               :options="providerOptions"
-              :disabled="!allowEdit || !hasAIFeature"
+              :disabled="!allowEdit"
               :consistent-menu-width="true"
             />
           </div>
@@ -80,7 +79,7 @@
               <template #trigger>
                 <BBTextField
                   v-model:value="state.apiKey"
-                  :disabled="!allowEdit || !hasAIFeature"
+                  :disabled="!allowEdit"
                   :placeholder="
                     $t(
                       'settings.general.workspace.ai-assistant.api-key.placeholder'
@@ -112,7 +111,7 @@
                 <BBTextField
                   v-model:value="state.endpoint"
                   :required="true"
-                  :disabled="!allowEdit || !hasAIFeature"
+                  :disabled="!allowEdit"
                   :placeholder="providerDefault.endpoint"
                 />
               </template>
@@ -138,7 +137,7 @@
                 <BBTextField
                   v-model:value="state.model"
                   :required="true"
-                  :disabled="!allowEdit || !hasAIFeature"
+                  :disabled="!allowEdit"
                 />
               </template>
               <span class="text-sm text-gray-400 -translate-y-2">
@@ -153,21 +152,19 @@
 </template>
 
 <script lang="ts" setup>
-import { NTooltip, NSelect } from "naive-ui";
-import scrollIntoView from "scroll-into-view-if-needed";
-import { computed, onMounted, reactive, ref, watchEffect, watch } from "vue";
-import { useI18n } from "vue-i18n";
 import { BBTextField } from "@/bbkit";
 import LearnMoreLink from "@/components/LearnMoreLink.vue";
 import { Switch } from "@/components/v2";
-import { hasFeature } from "@/store";
 import { useSettingV1Store } from "@/store/modules/v1/setting";
 import {
   AISetting,
   AISetting_Provider,
   Setting_SettingName,
 } from "@/types/proto/v1/setting_service";
-import { FeatureBadge } from "../FeatureGuard";
+import { NSelect, NTooltip } from "naive-ui";
+import scrollIntoView from "scroll-into-view-if-needed";
+import { computed, onMounted, reactive, ref, watch, watchEffect } from "vue";
+import { useI18n } from "vue-i18n";
 
 interface LocalState {
   enabled: boolean;
@@ -197,8 +194,6 @@ const state = reactive<LocalState>({
 const aiSetting = computed(
   () => settingV1Store.getSettingByName(Setting_SettingName.AI)?.value?.aiSetting
 );
-
-const hasAIFeature = computed(() => hasFeature("bb.feature.ai-assistant"));
 
 const getInitialState = (): LocalState => {
   return {

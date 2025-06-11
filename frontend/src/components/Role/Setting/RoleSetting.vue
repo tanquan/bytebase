@@ -21,7 +21,7 @@
         <template #icon>
           <PlusIcon class="h-4 w-4" />
           <FeatureBadge
-            feature="bb.feature.custom-role"
+            :feature="PlanFeature.FEATURE_CUSTOM_ROLES"
             class="mr-1 text-white"
           />
         </template>
@@ -48,7 +48,7 @@
     />
 
     <FeatureModal
-      feature="bb.feature.custom-role"
+      :feature="PlanFeature.FEATURE_CUSTOM_ROLES"
       :open="showFeatureModal"
       @cancel="showFeatureModal = false"
     />
@@ -65,6 +65,7 @@ import { FeatureBadge, FeatureModal } from "@/components/FeatureGuard";
 import { featureToRef, useRoleStore } from "@/store";
 import { PRESET_ROLES } from "@/types";
 import { Role } from "@/types/proto/v1/role_service";
+import { PlanFeature } from "@/types/proto/v1/subscription_service";
 import { hasWorkspacePermissionV2 } from "@/utils";
 import { RoleDataTable, RolePanel } from "./components";
 import { provideCustomRoleSettingContext } from "./context";
@@ -92,7 +93,7 @@ const state = reactive<LocalState>({
   },
 });
 
-const hasCustomRoleFeature = featureToRef("bb.feature.custom-role");
+const hasCustomRoleFeature = featureToRef(PlanFeature.FEATURE_CUSTOM_ROLES);
 const showFeatureModal = ref(false);
 
 const allowCreateRole = computed(() => {
