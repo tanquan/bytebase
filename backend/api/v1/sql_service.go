@@ -31,12 +31,11 @@ import (
 	"github.com/bytebase/bytebase/backend/component/iam"
 	"github.com/bytebase/bytebase/backend/component/masker"
 	"github.com/bytebase/bytebase/backend/component/sheet"
-	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
+	"github.com/bytebase/bytebase/backend/enterprise"
 	"github.com/bytebase/bytebase/backend/plugin/advisor"
 	"github.com/bytebase/bytebase/backend/plugin/advisor/catalog"
 	"github.com/bytebase/bytebase/backend/plugin/db"
 	parserbase "github.com/bytebase/bytebase/backend/plugin/parser/base"
-	mapperparser "github.com/bytebase/bytebase/backend/plugin/parser/mybatis/mapper"
 	"github.com/bytebase/bytebase/backend/plugin/parser/sql/transform"
 	"github.com/bytebase/bytebase/backend/plugin/schema"
 	"github.com/bytebase/bytebase/backend/runner/plancheck"
@@ -55,7 +54,7 @@ type SQLService struct {
 	sheetManager   *sheet.Manager
 	schemaSyncer   *schemasync.Syncer
 	dbFactory      *dbfactory.DBFactory
-	licenseService enterprise.LicenseService
+	licenseService *enterprise.LicenseService
 	profile        *config.Profile
 	iamManager     *iam.Manager
 }
@@ -66,7 +65,7 @@ func NewSQLService(
 	sheetManager *sheet.Manager,
 	schemaSyncer *schemasync.Syncer,
 	dbFactory *dbfactory.DBFactory,
-	licenseService enterprise.LicenseService,
+	licenseService *enterprise.LicenseService,
 	profile *config.Profile,
 	iamManager *iam.Manager,
 ) *SQLService {
@@ -174,7 +173,7 @@ func (s *SQLService) Query(ctx context.Context, request *v1pb.QueryRequest) (*v1
 		}
 	}
 
-	dataSource, err := checkAndGetDataSourceQueriable(ctx, s.store, database, request.DataSourceId)
+	dataSource, err := checkAndGetDataSourceQueriable(ctx, s.store, s.licenseService, database, request.DataSourceId)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +197,10 @@ func (s *SQLService) Query(ctx context.Context, request *v1pb.QueryRequest) (*v1
 		defer conn.Close()
 	}
 
-	maximumSQLResultSize := s.store.GetMaximumSQLResultLimit(ctx)
+	maximumSQLResultSize := common.DefaultMaximumSQLResultSize
+	if err := s.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_QUERY_POLICY); err == nil {
+		maximumSQLResultSize = s.store.GetMaximumSQLResultLimit(ctx)
+	}
 	queryContext := db.QueryContext{
 		Explain:              request.Explain,
 		Limit:                int(request.Limit),
@@ -402,7 +404,7 @@ func queryRetry(
 	conn *sql.Conn,
 	statement string,
 	queryContext db.QueryContext,
-	licenseService enterprise.LicenseService,
+	licenseService *enterprise.LicenseService,
 	optionalAccessCheck accessCheckFunc,
 	schemaSyncer *schemasync.Syncer,
 	action storepb.MaskingExceptionPolicy_MaskingException_Action,
@@ -662,7 +664,7 @@ func getSensitivePredicateColumnErrorMessages(sensitiveColumns []parserbase.Colu
 	return buf.String()
 }
 
-func executeWithTimeout(ctx context.Context, stores *store.Store, licenseService enterprise.LicenseService, driver db.Driver, conn *sql.Conn, statement string, queryContext db.QueryContext) ([]*v1pb.QueryResult, time.Duration, error) {
+func executeWithTimeout(ctx context.Context, stores *store.Store, licenseService *enterprise.LicenseService, driver db.Driver, conn *sql.Conn, statement string, queryContext db.QueryContext) ([]*v1pb.QueryResult, time.Duration, error) {
 	queryCtx := ctx
 	var timeout time.Duration
 	// For access control feature, we will use the timeout from request and query data policy.
@@ -729,7 +731,7 @@ func (s *SQLService) Export(ctx context.Context, request *v1pb.ExportRequest) (*
 		}
 	}
 
-	dataSource, err := checkAndGetDataSourceQueriable(ctx, s.store, database, request.DataSourceId)
+	dataSource, err := checkAndGetDataSourceQueriable(ctx, s.store, s.licenseService, database, request.DataSourceId)
 	if err != nil {
 		return nil, err
 	}
@@ -771,9 +773,13 @@ func (s *SQLService) doExportFromIssue(ctx context.Context, requestName string) 
 
 	exportArchiveUIDs := []int{}
 	contents := []*exportData{}
+	targetTaskRunStatus := []storepb.TaskRun_Status{storepb.TaskRun_DONE}
 
 	for _, task := range tasks {
-		taskRuns, err := s.store.ListTaskRunsV2(ctx, &store.FindTaskRunMessage{TaskUID: &task.ID})
+		taskRuns, err := s.store.ListTaskRunsV2(ctx, &store.FindTaskRunMessage{
+			TaskUID: &task.ID,
+			Status:  &targetTaskRunStatus,
+		})
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to get task run: %v", err)
 		}
@@ -824,7 +830,7 @@ func DoExport(
 	ctx context.Context,
 	stores *store.Store,
 	dbFactory *dbfactory.DBFactory,
-	licenseService enterprise.LicenseService,
+	licenseService *enterprise.LicenseService,
 	request *v1pb.ExportRequest,
 	user *store.UserMessage,
 	instance *store.InstanceMessage,
@@ -1440,32 +1446,19 @@ func (s *SQLService) prepareRelatedMessage(ctx context.Context, requestName stri
 		return nil, nil, nil, status.Error(codes.Internal, err.Error())
 	}
 
-	instanceID, databaseName, err := common.GetInstanceDatabaseID(requestName)
+	database, err := getDatabaseMessage(ctx, s.store, requestName)
 	if err != nil {
-		return nil, nil, nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, nil, nil, status.Error(codes.Internal, err.Error())
 	}
 
-	find := &store.FindInstanceMessage{
-		ResourceID: &instanceID,
-	}
-	instance, err := s.store.GetInstanceV2(ctx, find)
+	instance, err := s.store.GetInstanceV2(ctx, &store.FindInstanceMessage{
+		ResourceID: &database.InstanceID,
+	})
 	if err != nil {
 		return nil, nil, nil, status.Error(codes.Internal, err.Error())
 	}
 	if instance == nil {
-		return nil, nil, nil, status.Errorf(codes.NotFound, "instance %q not found", instanceID)
-	}
-
-	database, err := s.store.GetDatabaseV2(ctx, &store.FindDatabaseMessage{
-		InstanceID:      &instance.ResourceID,
-		DatabaseName:    &databaseName,
-		IsCaseSensitive: store.IsObjectCaseSensitive(instance),
-	})
-	if err != nil {
-		return nil, nil, nil, status.Errorf(codes.Internal, "failed to fetch database: %v", err)
-	}
-	if database == nil {
-		return nil, nil, nil, status.Errorf(codes.NotFound, "database %q not found", databaseName)
+		return nil, nil, nil, status.Errorf(codes.NotFound, "instance %q not found", database.InstanceID)
 	}
 
 	return user, instance, database, nil
@@ -1552,30 +1545,19 @@ func (s *SQLService) Check(ctx context.Context, request *v1pb.CheckRequest) (*v1
 		return nil, status.Errorf(codes.FailedPrecondition, "statement size exceeds maximum allowed size %dKB", common.MaxSheetCheckSize/1024)
 	}
 
-	instanceID, databaseName, err := common.GetInstanceDatabaseID(request.Name)
+	database, err := getDatabaseMessage(ctx, s.store, request.Name)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	instance, err := s.store.GetInstanceV2(ctx, &store.FindInstanceMessage{
-		ResourceID: &instanceID,
+		ResourceID: &database.InstanceID,
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get instance, error: %v", err)
 	}
 	if instance == nil {
-		return nil, status.Errorf(codes.NotFound, "instance %q not found", instanceID)
-	}
-
-	database, err := s.store.GetDatabaseV2(ctx, &store.FindDatabaseMessage{
-		InstanceID:   &instanceID,
-		DatabaseName: &databaseName,
-	})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get database, error: %v", err)
-	}
-	if database == nil {
-		return nil, status.Errorf(codes.NotFound, "database %q not found", request.Name)
+		return nil, status.Errorf(codes.NotFound, "instance %q not found", database.InstanceID)
 	}
 
 	checkResponse := &v1pb.CheckResponse{}
@@ -1760,40 +1742,6 @@ func convertAdviceStatus(status storepb.Advice_Status) v1pb.Advice_Status {
 	}
 }
 
-// ParseMyBatisMapper parses a MyBatis mapper XML file and returns the multi-SQL statements.
-func (*SQLService) ParseMyBatisMapper(_ context.Context, request *v1pb.ParseMyBatisMapperRequest) (*v1pb.ParseMyBatisMapperResponse, error) {
-	content := string(request.Content)
-
-	parser := mapperparser.NewParser(content)
-	node, err := parser.Parse()
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to parse mybatis mapper: %v", err)
-	}
-
-	var stringsBuilder strings.Builder
-	if err := node.RestoreSQL(parser.NewRestoreContext().WithRestoreDataNodePlaceholder("@1"), &stringsBuilder); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to restore mybatis mapper: %v", err)
-	}
-
-	statement := stringsBuilder.String()
-	singleSQLs, err := parserbase.SplitMultiSQL(storepb.Engine_MYSQL, statement)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to split mybatis mapper: %v", err)
-	}
-
-	var results []string
-	for _, sql := range singleSQLs {
-		if sql.Empty {
-			continue
-		}
-		results = append(results, sql.Text)
-	}
-
-	return &v1pb.ParseMyBatisMapperResponse{
-		Statements: results,
-	}, nil
-}
-
 func (*SQLService) DiffMetadata(_ context.Context, request *v1pb.DiffMetadataRequest) (*v1pb.DiffMetadataResponse, error) {
 	switch request.Engine {
 	case v1pb.Engine_MYSQL, v1pb.Engine_POSTGRES, v1pb.Engine_TIDB, v1pb.Engine_ORACLE:
@@ -1918,6 +1866,7 @@ func GetQueriableDataSource(instance *store.InstanceMessage) *storepb.DataSource
 func checkAndGetDataSourceQueriable(
 	ctx context.Context,
 	storeInstance *store.Store,
+	licenseService *enterprise.LicenseService,
 	database *store.DatabaseMessage,
 	dataSourceID string,
 ) (*storepb.DataSource, error) {
@@ -1946,9 +1895,16 @@ func checkAndGetDataSourceQueriable(
 
 	// Always allow non-admin data source.
 	if dataSource.GetType() != storepb.DataSourceType_ADMIN {
+		if err := licenseService.IsFeatureEnabledForInstance(v1pb.PlanFeature_FEATURE_INSTANCE_READ_ONLY_CONNECTION, instance); err != nil {
+			return nil, status.Error(codes.PermissionDenied, err.Error())
+		}
 		return dataSource, nil
 	}
 
+	//nolint:nilerr
+	if err := licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_QUERY_DATASOURCE_RESTRICTION); err != nil {
+		return dataSource, nil
+	}
 	var envAdminDataSourceRestriction, projectAdminDataSourceRestriction v1pb.DataSourceQueryPolicy_Restriction
 	environment, err := storeInstance.GetEnvironmentByID(ctx, database.EffectiveEnvironmentID)
 	if err != nil {

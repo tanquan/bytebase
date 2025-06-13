@@ -132,6 +132,7 @@
     "loading": "Đang tải",
     "copy": "Sao chép",
     "copied": "Đã sao chép",
+    "click-to-copy": "Nhấp để sao chép",
     "manage": "Quản lý",
     "table": "Bảng",
     "search": "Tìm kiếm",
@@ -150,6 +151,7 @@
     "view-doc": "Xem tài liệu",
     "write-only": "chỉ ghi",
     "sync": "Đồng bộ hóa",
+    "succeed": "Thành công",
     "success": "Thành công",
     "failed": "Thất bại",
     "load-more": "Tải thêm",
@@ -178,8 +180,13 @@
     "optional": "Tùy chọn",
     "reason": "Lý do",
     "date": {
-      "days": "{days} ngày"
+      "days": "{days} ngày",
+      "week": "1 tuần",
+      "month": "1 tháng",
+      "months": "{months} tháng",
+      "year": "1 năm"
     },
+    "access-expires": "Truy cập hết hạn",
     "expiration": "Hết hạn",
     "configure": "Cấu hình",
     "groups": "Nhóm",
@@ -341,8 +348,7 @@
       "data-classification": "Phân loại dữ liệu",
       "data-access": "Truy cập dữ liệu",
       "audit-log": "Nhật ký kiểm tra",
-      "custom-roles": "Vai trò tùy chỉnh",
-      "mail-delivery": "Gửi thư"
+      "custom-roles": "Vai trò tùy chỉnh"
     },
     "profile": {
       "email": "Email",
@@ -701,22 +707,6 @@
       },
       "json-format-example": "Ví dụ định dạng JSON",
       "view-example": "Xem ví dụ"
-    },
-    "mail-delivery": {
-      "description": "Định cấu hình thông tin SMTP sẽ cho phép người dùng nhận báo cáo cơ sở dữ liệu qua email, chẳng hạn như báo cáo truy vấn chậm hàng tuần.",
-      "field": {
-        "smtp-server-host": "Máy chủ SMTP",
-        "smtp-server-port": "Cổng máy chủ SMTP",
-        "from": "Từ",
-        "smtp-username": "Tên người dùng SMTP",
-        "smtp-password": "Mật khẩu SMTP",
-        "send-test-email-to": "Gửi email thử nghiệm đến",
-        "send": "Gửi",
-        "authentication-method": "Phương thức xác thực",
-        "encryption": "Mã hóa"
-      },
-      "updated-tip": "Đã cập nhật cài đặt gửi thư thành công",
-      "tested-tip": "Gửi thành công, vui lòng kiểm tra hộp thư đến của {address}."
     }
   },
   "remind": {
@@ -905,7 +895,8 @@
       "all-databases": "Tất cả",
       "all-databases-tip": "Tất cả cơ sở dữ liệu hiện tại và tương lai trong dự án này.",
       "manually-select": "Chọn thủ công",
-      "custom": "Tùy chỉnh"
+      "custom-date": "Ngày tùy chỉnh",
+      "custom-date-placeholder": "Chọn ngày và giờ hết hạn"
     },
     "review-sent-back": "Đánh giá đã gửi lại",
     "update-statement": {
@@ -993,6 +984,7 @@
     }
   },
   "plan": {
+    "new-plan": "Kế hoạch mới",
     "add-spec": "Thêm thông số kỹ thuật",
     "change-type": "Thay đổi loại",
     "schema-migration": "Di chuyển lược đồ",
@@ -1009,7 +1001,6 @@
       "affected-resources": "Tài nguyên bị ảnh hưởng"
     },
     "navigator": {
-      "overview": "Tổng quan",
       "specifications": "Thông số kỹ thuật",
       "checks": "Kiểm tra",
       "statement-empty": "Câu lệnh trống rỗng"
@@ -1032,12 +1023,12 @@
       "multiple-databases": "{count} cơ sở dữ liệu",
       "database-group": "Nhóm cơ sở dữ liệu",
       "database-not-found": "Không tìm thấy cơ sở dữ liệu",
-      "environment": "Môi trường: {environment}",
       "type": {
         "instance": "Ví dụ",
         "database": "Cơ sở dữ liệu",
         "database-group": "Nhóm cơ sở dữ liệu"
-      }
+      },
+      "view-all": "Xem tất cả ({count})"
     },
     "options": {
       "self": "Tùy chọn",
@@ -1056,6 +1047,11 @@
       "some-databases-not-meeting-requirements": "Một số cơ sở dữ liệu ({databases}) không đáp ứng được yêu cầu",
       "some-databases-have-issues": "{count} cơ sở dữ liệu có vấn đề | {count} cơ sở dữ liệu có vấn đề",
       "configuration-has-issues": "Cấu hình có vấn đề {count} | Cấu hình có vấn đề {count}"
+    },
+    "checks": {
+      "self": "Kiểm tra",
+      "no-checks": "Không có kết quả kiểm tra nào có sẵn",
+      "click-to-run-checks": "Nhấp vào \"Chạy kiểm tra\" để xác thực thông số kỹ thuật này"
     }
   },
   "quick-action": {
@@ -1465,7 +1461,6 @@
     "unassigned-databases": "Cơ sở dữ liệu chưa được gán",
     "selected-n-databases": "Đã chọn {n} cơ sở dữ liệu | Đã chọn {n} cơ sở dữ liệu",
     "n-databases": "{n} cơ sở dữ liệu | {n} cơ sở dữ liệu",
-    "select-databases-from-same-project": "Vui lòng chọn cơ sở dữ liệu từ cùng một dự án",
     "sync-schema": {
       "title": "Đồng bộ lược đồ",
       "description": "Bytebase hỗ trợ đồng bộ hóa một lược đồ với một hoặc nhiều cơ sở dữ liệu đích. (Chỉ MySQL, PostgreSQL, Oracle, MSSQL, TiDB)",
@@ -1939,6 +1934,7 @@
     },
     "upload-file": "Tải lên tệp",
     "copy-selected-results": "Sao chép dữ liệu đã chọn bằng {action} hoặc {button}",
+    "cancel-selection": "Hủy lựa chọn",
     "format-default": "Mặc định",
     "column-display-format": "Định dạng hiển thị cột",
     "next-row": "Dòng tiếp theo",
@@ -2585,8 +2581,7 @@
     "permission-denied": "Quyền bị từ chối"
   },
   "review-center": {
-    "self": "Trung tâm đánh giá",
-    "review-sql": "Đánh giá SQL"
+    "self": "Trung tâm đánh giá"
   },
   "schema-designer": {
     "use-tips": "Nhấp vào một bảng để bắt đầu."

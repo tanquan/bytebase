@@ -114,13 +114,13 @@ export enum PlanFeature {
   FEATURE_INSTANCE_SSL_CONNECTION = "FEATURE_INSTANCE_SSL_CONNECTION",
   FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL = "FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL",
   FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION = "FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION",
+  FEATURE_CUSTOM_INSTANCE_SYNC_TIME = "FEATURE_CUSTOM_INSTANCE_SYNC_TIME",
+  FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT = "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT",
   FEATURE_GOOGLE_AND_GITHUB_SSO = "FEATURE_GOOGLE_AND_GITHUB_SSO",
   FEATURE_USER_GROUPS = "FEATURE_USER_GROUPS",
   FEATURE_DISALLOW_SELF_SERVICE_SIGNUP = "FEATURE_DISALLOW_SELF_SERVICE_SIGNUP",
   FEATURE_DATABASE_SECRET_VARIABLES = "FEATURE_DATABASE_SECRET_VARIABLES",
   FEATURE_QUERY_DATASOURCE_RESTRICTION = "FEATURE_QUERY_DATASOURCE_RESTRICTION",
-  FEATURE_CUSTOM_INSTANCE_SYNC_TIME = "FEATURE_CUSTOM_INSTANCE_SYNC_TIME",
-  FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT = "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT",
   FEATURE_RISK_ASSESSMENT = "FEATURE_RISK_ASSESSMENT",
   FEATURE_APPROVAL_WORKFLOW = "FEATURE_APPROVAL_WORKFLOW",
   FEATURE_AUDIT_LOG = "FEATURE_AUDIT_LOG",
@@ -268,6 +268,12 @@ export function planFeatureFromJSON(object: any): PlanFeature {
     case 36:
     case "FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION":
       return PlanFeature.FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION;
+    case 42:
+    case "FEATURE_CUSTOM_INSTANCE_SYNC_TIME":
+      return PlanFeature.FEATURE_CUSTOM_INSTANCE_SYNC_TIME;
+    case 43:
+    case "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT":
+      return PlanFeature.FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT;
     case 37:
     case "FEATURE_GOOGLE_AND_GITHUB_SSO":
       return PlanFeature.FEATURE_GOOGLE_AND_GITHUB_SSO;
@@ -283,12 +289,6 @@ export function planFeatureFromJSON(object: any): PlanFeature {
     case 41:
     case "FEATURE_QUERY_DATASOURCE_RESTRICTION":
       return PlanFeature.FEATURE_QUERY_DATASOURCE_RESTRICTION;
-    case 42:
-    case "FEATURE_CUSTOM_INSTANCE_SYNC_TIME":
-      return PlanFeature.FEATURE_CUSTOM_INSTANCE_SYNC_TIME;
-    case 43:
-    case "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT":
-      return PlanFeature.FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT;
     case 44:
     case "FEATURE_RISK_ASSESSMENT":
       return PlanFeature.FEATURE_RISK_ASSESSMENT;
@@ -462,6 +462,10 @@ export function planFeatureToJSON(object: PlanFeature): string {
       return "FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL";
     case PlanFeature.FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION:
       return "FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION";
+    case PlanFeature.FEATURE_CUSTOM_INSTANCE_SYNC_TIME:
+      return "FEATURE_CUSTOM_INSTANCE_SYNC_TIME";
+    case PlanFeature.FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT:
+      return "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT";
     case PlanFeature.FEATURE_GOOGLE_AND_GITHUB_SSO:
       return "FEATURE_GOOGLE_AND_GITHUB_SSO";
     case PlanFeature.FEATURE_USER_GROUPS:
@@ -472,10 +476,6 @@ export function planFeatureToJSON(object: PlanFeature): string {
       return "FEATURE_DATABASE_SECRET_VARIABLES";
     case PlanFeature.FEATURE_QUERY_DATASOURCE_RESTRICTION:
       return "FEATURE_QUERY_DATASOURCE_RESTRICTION";
-    case PlanFeature.FEATURE_CUSTOM_INSTANCE_SYNC_TIME:
-      return "FEATURE_CUSTOM_INSTANCE_SYNC_TIME";
-    case PlanFeature.FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT:
-      return "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT";
     case PlanFeature.FEATURE_RISK_ASSESSMENT:
       return "FEATURE_RISK_ASSESSMENT";
     case PlanFeature.FEATURE_APPROVAL_WORKFLOW:
@@ -618,6 +618,10 @@ export function planFeatureToNumber(object: PlanFeature): number {
       return 35;
     case PlanFeature.FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION:
       return 36;
+    case PlanFeature.FEATURE_CUSTOM_INSTANCE_SYNC_TIME:
+      return 42;
+    case PlanFeature.FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT:
+      return 43;
     case PlanFeature.FEATURE_GOOGLE_AND_GITHUB_SSO:
       return 37;
     case PlanFeature.FEATURE_USER_GROUPS:
@@ -628,10 +632,6 @@ export function planFeatureToNumber(object: PlanFeature): number {
       return 40;
     case PlanFeature.FEATURE_QUERY_DATASOURCE_RESTRICTION:
       return 41;
-    case PlanFeature.FEATURE_CUSTOM_INSTANCE_SYNC_TIME:
-      return 42;
-    case PlanFeature.FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT:
-      return 43;
     case PlanFeature.FEATURE_RISK_ASSESSMENT:
       return 44;
     case PlanFeature.FEATURE_APPROVAL_WORKFLOW:
@@ -702,10 +702,6 @@ export interface GetSubscriptionRequest {
 }
 
 export interface UpdateSubscriptionRequest {
-  patch: PatchSubscription | undefined;
-}
-
-export interface PatchSubscription {
   license: string;
 }
 
@@ -713,10 +709,8 @@ export interface Subscription {
   seatCount: number;
   instanceCount: number;
   expiresTime: Timestamp | undefined;
-  startedTime: Timestamp | undefined;
   plan: PlanType;
   trialing: boolean;
-  orgId: string;
   orgName: string;
 }
 
@@ -778,13 +772,13 @@ export const GetSubscriptionRequest: MessageFns<GetSubscriptionRequest> = {
 };
 
 function createBaseUpdateSubscriptionRequest(): UpdateSubscriptionRequest {
-  return { patch: undefined };
+  return { license: "" };
 }
 
 export const UpdateSubscriptionRequest: MessageFns<UpdateSubscriptionRequest> = {
   encode(message: UpdateSubscriptionRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.patch !== undefined) {
-      PatchSubscription.encode(message.patch, writer.uint32(10).fork()).join();
+    if (message.license !== "") {
+      writer.uint32(10).string(message.license);
     }
     return writer;
   },
@@ -793,66 +787,6 @@ export const UpdateSubscriptionRequest: MessageFns<UpdateSubscriptionRequest> = 
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseUpdateSubscriptionRequest();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.patch = PatchSubscription.decode(reader, reader.uint32());
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  fromJSON(object: any): UpdateSubscriptionRequest {
-    return { patch: isSet(object.patch) ? PatchSubscription.fromJSON(object.patch) : undefined };
-  },
-
-  toJSON(message: UpdateSubscriptionRequest): unknown {
-    const obj: any = {};
-    if (message.patch !== undefined) {
-      obj.patch = PatchSubscription.toJSON(message.patch);
-    }
-    return obj;
-  },
-
-  create(base?: DeepPartial<UpdateSubscriptionRequest>): UpdateSubscriptionRequest {
-    return UpdateSubscriptionRequest.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<UpdateSubscriptionRequest>): UpdateSubscriptionRequest {
-    const message = createBaseUpdateSubscriptionRequest();
-    message.patch = (object.patch !== undefined && object.patch !== null)
-      ? PatchSubscription.fromPartial(object.patch)
-      : undefined;
-    return message;
-  },
-};
-
-function createBasePatchSubscription(): PatchSubscription {
-  return { license: "" };
-}
-
-export const PatchSubscription: MessageFns<PatchSubscription> = {
-  encode(message: PatchSubscription, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.license !== "") {
-      writer.uint32(10).string(message.license);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): PatchSubscription {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePatchSubscription();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -873,11 +807,11 @@ export const PatchSubscription: MessageFns<PatchSubscription> = {
     return message;
   },
 
-  fromJSON(object: any): PatchSubscription {
+  fromJSON(object: any): UpdateSubscriptionRequest {
     return { license: isSet(object.license) ? globalThis.String(object.license) : "" };
   },
 
-  toJSON(message: PatchSubscription): unknown {
+  toJSON(message: UpdateSubscriptionRequest): unknown {
     const obj: any = {};
     if (message.license !== "") {
       obj.license = message.license;
@@ -885,11 +819,11 @@ export const PatchSubscription: MessageFns<PatchSubscription> = {
     return obj;
   },
 
-  create(base?: DeepPartial<PatchSubscription>): PatchSubscription {
-    return PatchSubscription.fromPartial(base ?? {});
+  create(base?: DeepPartial<UpdateSubscriptionRequest>): UpdateSubscriptionRequest {
+    return UpdateSubscriptionRequest.fromPartial(base ?? {});
   },
-  fromPartial(object: DeepPartial<PatchSubscription>): PatchSubscription {
-    const message = createBasePatchSubscription();
+  fromPartial(object: DeepPartial<UpdateSubscriptionRequest>): UpdateSubscriptionRequest {
+    const message = createBaseUpdateSubscriptionRequest();
     message.license = object.license ?? "";
     return message;
   },
@@ -900,10 +834,8 @@ function createBaseSubscription(): Subscription {
     seatCount: 0,
     instanceCount: 0,
     expiresTime: undefined,
-    startedTime: undefined,
     plan: PlanType.PLAN_TYPE_UNSPECIFIED,
     trialing: false,
-    orgId: "",
     orgName: "",
   };
 }
@@ -919,20 +851,14 @@ export const Subscription: MessageFns<Subscription> = {
     if (message.expiresTime !== undefined) {
       Timestamp.encode(message.expiresTime, writer.uint32(26).fork()).join();
     }
-    if (message.startedTime !== undefined) {
-      Timestamp.encode(message.startedTime, writer.uint32(34).fork()).join();
-    }
     if (message.plan !== PlanType.PLAN_TYPE_UNSPECIFIED) {
-      writer.uint32(40).int32(planTypeToNumber(message.plan));
+      writer.uint32(32).int32(planTypeToNumber(message.plan));
     }
     if (message.trialing !== false) {
-      writer.uint32(48).bool(message.trialing);
-    }
-    if (message.orgId !== "") {
-      writer.uint32(58).string(message.orgId);
+      writer.uint32(40).bool(message.trialing);
     }
     if (message.orgName !== "") {
-      writer.uint32(66).string(message.orgName);
+      writer.uint32(50).string(message.orgName);
     }
     return writer;
   },
@@ -969,11 +895,11 @@ export const Subscription: MessageFns<Subscription> = {
           continue;
         }
         case 4: {
-          if (tag !== 34) {
+          if (tag !== 32) {
             break;
           }
 
-          message.startedTime = Timestamp.decode(reader, reader.uint32());
+          message.plan = planTypeFromJSON(reader.int32());
           continue;
         }
         case 5: {
@@ -981,27 +907,11 @@ export const Subscription: MessageFns<Subscription> = {
             break;
           }
 
-          message.plan = planTypeFromJSON(reader.int32());
-          continue;
-        }
-        case 6: {
-          if (tag !== 48) {
-            break;
-          }
-
           message.trialing = reader.bool();
           continue;
         }
-        case 7: {
-          if (tag !== 58) {
-            break;
-          }
-
-          message.orgId = reader.string();
-          continue;
-        }
-        case 8: {
-          if (tag !== 66) {
+        case 6: {
+          if (tag !== 50) {
             break;
           }
 
@@ -1022,10 +932,8 @@ export const Subscription: MessageFns<Subscription> = {
       seatCount: isSet(object.seatCount) ? globalThis.Number(object.seatCount) : 0,
       instanceCount: isSet(object.instanceCount) ? globalThis.Number(object.instanceCount) : 0,
       expiresTime: isSet(object.expiresTime) ? fromJsonTimestamp(object.expiresTime) : undefined,
-      startedTime: isSet(object.startedTime) ? fromJsonTimestamp(object.startedTime) : undefined,
       plan: isSet(object.plan) ? planTypeFromJSON(object.plan) : PlanType.PLAN_TYPE_UNSPECIFIED,
       trialing: isSet(object.trialing) ? globalThis.Boolean(object.trialing) : false,
-      orgId: isSet(object.orgId) ? globalThis.String(object.orgId) : "",
       orgName: isSet(object.orgName) ? globalThis.String(object.orgName) : "",
     };
   },
@@ -1041,17 +949,11 @@ export const Subscription: MessageFns<Subscription> = {
     if (message.expiresTime !== undefined) {
       obj.expiresTime = fromTimestamp(message.expiresTime).toISOString();
     }
-    if (message.startedTime !== undefined) {
-      obj.startedTime = fromTimestamp(message.startedTime).toISOString();
-    }
     if (message.plan !== PlanType.PLAN_TYPE_UNSPECIFIED) {
       obj.plan = planTypeToJSON(message.plan);
     }
     if (message.trialing !== false) {
       obj.trialing = message.trialing;
-    }
-    if (message.orgId !== "") {
-      obj.orgId = message.orgId;
     }
     if (message.orgName !== "") {
       obj.orgName = message.orgName;
@@ -1069,12 +971,8 @@ export const Subscription: MessageFns<Subscription> = {
     message.expiresTime = (object.expiresTime !== undefined && object.expiresTime !== null)
       ? Timestamp.fromPartial(object.expiresTime)
       : undefined;
-    message.startedTime = (object.startedTime !== undefined && object.startedTime !== null)
-      ? Timestamp.fromPartial(object.startedTime)
-      : undefined;
     message.plan = object.plan ?? PlanType.PLAN_TYPE_UNSPECIFIED;
     message.trialing = object.trialing ?? false;
-    message.orgId = object.orgId ?? "";
     message.orgName = object.orgName ?? "";
     return message;
   },
@@ -1297,6 +1195,11 @@ export const SubscriptionServiceDefinition = {
   name: "SubscriptionService",
   fullName: "bytebase.v1.SubscriptionService",
   methods: {
+    /**
+     * GetSubscription returns the current subscription.
+     * If there is no license, we will return a free plan subscription without expiration time.
+     * If there is expired license, we will return a free plan subscription with the expiration time of the expired license.
+     */
     getSubscription: {
       name: "GetSubscription",
       requestType: GetSubscriptionRequest,
@@ -1326,14 +1229,16 @@ export const SubscriptionServiceDefinition = {
           800016: [new Uint8Array([1])],
           578365826: [
             new Uint8Array([
-              25,
+              27,
               58,
-              5,
-              112,
-              97,
-              116,
+              7,
+              108,
+              105,
               99,
-              104,
+              101,
+              110,
+              115,
+              101,
               50,
               16,
               47,

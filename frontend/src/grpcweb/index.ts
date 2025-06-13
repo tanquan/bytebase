@@ -1,4 +1,13 @@
-import { ActuatorServiceDefinition } from "@/types/proto/v1/actuator_service";
+import { createClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-web";
+import { errorDetailsClientMiddleware } from "nice-grpc-error-details";
+import {
+  createChannel,
+  createClientFactory,
+  FetchTransport,
+  WebsocketTransport,
+} from "nice-grpc-web";
+import { ActuatorService } from "@/types/proto-es/v1/actuator_service_pb";
 import { AuditLogServiceDefinition } from "@/types/proto/v1/audit_log_service";
 import { AuthServiceDefinition } from "@/types/proto/v1/auth_service";
 import { CelServiceDefinition } from "@/types/proto/v1/cel_service";
@@ -15,8 +24,8 @@ import { OrgPolicyServiceDefinition } from "@/types/proto/v1/org_policy_service"
 import { PlanServiceDefinition } from "@/types/proto/v1/plan_service";
 import { ProjectServiceDefinition } from "@/types/proto/v1/project_service";
 import { ReleaseServiceDefinition } from "@/types/proto/v1/release_service";
-import { RevisionServiceDefinition } from "@/types/proto/v1/revision_service";
 import { ReviewConfigServiceDefinition } from "@/types/proto/v1/review_config_service";
+import { RevisionServiceDefinition } from "@/types/proto/v1/revision_service";
 import { RiskServiceDefinition } from "@/types/proto/v1/risk_service";
 import { RoleServiceDefinition } from "@/types/proto/v1/role_service";
 import { RolloutServiceDefinition } from "@/types/proto/v1/rollout_service";
@@ -27,13 +36,6 @@ import { SubscriptionServiceDefinition } from "@/types/proto/v1/subscription_ser
 import { UserServiceDefinition } from "@/types/proto/v1/user_service";
 import { WorksheetServiceDefinition } from "@/types/proto/v1/worksheet_service";
 import { WorkspaceServiceDefinition } from "@/types/proto/v1/workspace_service";
-import { errorDetailsClientMiddleware } from "nice-grpc-error-details";
-import {
-  createChannel,
-  createClientFactory,
-  FetchTransport,
-  WebsocketTransport,
-} from "nice-grpc-web";
 import {
   authInterceptorMiddleware,
   errorNotificationMiddleware,
@@ -176,11 +178,6 @@ export const subscriptionServiceClient = clientFactory.create(
   channel
 );
 
-export const actuatorServiceClient = clientFactory.create(
-  ActuatorServiceDefinition,
-  channel
-);
-
 export const changelistServiceClient = clientFactory.create(
   ChangelistServiceDefinition,
   channel
@@ -229,3 +226,15 @@ export const instanceRoleServiceClient = clientFactory.create(
 //   web: true,
 // });
 // const { users } = await authServiceClient.listUsers({});
+
+const transport = createConnectTransport({
+  baseUrl: address,
+  useBinaryFormat: true,
+  fetch: (input, init) => fetch(input, { ...init, credentials: "include" }),
+});
+
+export const actuatorServiceClientConnect = createClient(
+  ActuatorService,
+  transport
+);
+

@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full overflow-x-hidden space-y-4">
+  <div class="w-full overflow-x-hidden space-y-4 pb-4">
     <BBAttention
       v-if="remainingUserCount <= 3"
       :type="'warning'"
@@ -63,21 +63,16 @@
           <NButton
             v-if="allowGetSCIMSetting && allowCreateUser"
             class="capitalize"
+            :disabled="!hasDirectorySyncFeature"
             @click="
               () => {
-                if (!hasDirectorySyncFeature) {
-                  state.showFeatureModal = true;
-                  return;
-                }
                 state.showAadSyncDrawer = true;
               }
             "
           >
             <template #icon>
               <SettingsIcon class="h-5 w-5" />
-              <FeatureBadge
-                :feature="PlanFeature.FEATURE_DIRECTORY_SYNC"
-              />
+              <FeatureBadge :feature="PlanFeature.FEATURE_DIRECTORY_SYNC" />
             </template>
             {{ $t(`settings.members.entra-sync.self`) }}
           </NButton>
@@ -88,11 +83,15 @@
           >
             <template #trigger>
               <NButton
-                :disabled="workspaceProfileSetting.domains.length === 0"
+                :disabled="
+                  workspaceProfileSetting.domains.length === 0 ||
+                  !hasUserGroupFeature
+                "
                 @click="handleCreateGroup"
               >
                 <template #icon>
                   <PlusIcon class="h-5 w-5" />
+                  <FeatureBadge :feature="PlanFeature.FEATURE_USER_GROUPS" />
                 </template>
                 {{ $t(`settings.members.groups.add-group`) }}
               </NButton>
@@ -178,17 +177,17 @@
     :show="state.showAadSyncDrawer"
     @close="state.showAadSyncDrawer = false"
   />
-
-  <FeatureModal
-    :feature="PlanFeature.FEATURE_DIRECTORY_SYNC"
-    :open="state.showFeatureModal"
-    @cancel="state.showFeatureModal = false"
-  />
 </template>
 
 <script setup lang="ts">
+import { PlusIcon, SettingsIcon } from "lucide-vue-next";
+import { NButton, NCheckbox, NPopover, NTabPane, NTabs } from "naive-ui";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import type { ComponentExposed } from "vue-component-type-helpers";
+import { useI18n } from "vue-i18n";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { BBAttention } from "@/bbkit";
-import { FeatureBadge, FeatureModal } from "@/components/FeatureGuard";
+import { FeatureBadge } from "@/components/FeatureGuard";
 import AADSyncDrawer from "@/components/User/Settings/AADSyncDrawer.vue";
 import CreateGroupDrawer from "@/components/User/Settings/CreateGroupDrawer.vue";
 import CreateUserDrawer from "@/components/User/Settings/CreateUserDrawer.vue";
@@ -213,12 +212,6 @@ import { WorkspaceProfileSetting } from "@/types/proto/v1/setting_service";
 import { PlanFeature } from "@/types/proto/v1/subscription_service";
 import { type User } from "@/types/proto/v1/user_service";
 import { hasWorkspacePermissionV2 } from "@/utils";
-import { PlusIcon, SettingsIcon } from "lucide-vue-next";
-import { NButton, NCheckbox, NPopover, NTabPane, NTabs } from "naive-ui";
-import { computed, onMounted, reactive, ref, watch } from "vue";
-import type { ComponentExposed } from "vue-component-type-helpers";
-import { useI18n } from "vue-i18n";
-import { RouterLink, useRoute, useRouter } from "vue-router";
 
 const tabList = ["USERS", "GROUPS"] as const;
 type MemberTab = (typeof tabList)[number];
@@ -234,7 +227,6 @@ type LocalState = {
   showCreateGroupDrawer: boolean;
   showAadSyncDrawer: boolean;
   editingGroup?: Group;
-  showFeatureModal: boolean;
 };
 
 const props = defineProps<{
@@ -249,7 +241,6 @@ const state = reactive<LocalState>({
   showCreateUserDrawer: false,
   showCreateGroupDrawer: false,
   showAadSyncDrawer: false,
-  showFeatureModal: false,
 });
 
 const { t } = useI18n();
@@ -335,6 +326,8 @@ const hasDirectorySyncFeature = featureToRef(
   PlanFeature.FEATURE_DIRECTORY_SYNC
 );
 
+const hasUserGroupFeature = featureToRef(PlanFeature.FEATURE_USER_GROUPS);
+
 const allowGetSCIMSetting = computed(() =>
   hasWorkspacePermissionV2("bb.settings.get")
 );
@@ -393,19 +386,14 @@ const remainingUserCount = computed((): number => {
 });
 
 const userCountAttention = computed((): string => {
-  const upgrade = t(
-    "subscription.usage.user-count.upgrade"
-  );
+  const upgrade = t("subscription.usage.user-count.upgrade");
   let status = "";
 
   if (remainingUserCount.value > 0) {
-    status = t(
-      "subscription.usage.user-count.remaining",
-      {
-        total: subscriptionV1Store.userCountLimit,
-        count: remainingUserCount.value,
-      }
-    );
+    status = t("subscription.usage.user-count.remaining", {
+      total: subscriptionV1Store.userCountLimit,
+      count: remainingUserCount.value,
+    });
   } else {
     status = t("subscription.usage.user-count.runoutof", {
       total: subscriptionV1Store.userCountLimit,

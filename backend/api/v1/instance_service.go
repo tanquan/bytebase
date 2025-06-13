@@ -22,7 +22,7 @@ import (
 	"github.com/bytebase/bytebase/backend/component/iam"
 	"github.com/bytebase/bytebase/backend/component/secret"
 	"github.com/bytebase/bytebase/backend/component/state"
-	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
+	"github.com/bytebase/bytebase/backend/enterprise"
 	metricapi "github.com/bytebase/bytebase/backend/metric"
 	"github.com/bytebase/bytebase/backend/plugin/db"
 	"github.com/bytebase/bytebase/backend/plugin/metric"
@@ -37,7 +37,7 @@ import (
 type InstanceService struct {
 	v1pb.UnimplementedInstanceServiceServer
 	store          *store.Store
-	licenseService enterprise.LicenseService
+	licenseService *enterprise.LicenseService
 	metricReporter *metricreport.Reporter
 	stateCfg       *state.State
 	dbFactory      *dbfactory.DBFactory
@@ -46,7 +46,7 @@ type InstanceService struct {
 }
 
 // NewInstanceService creates a new InstanceService.
-func NewInstanceService(store *store.Store, licenseService enterprise.LicenseService, metricReporter *metricreport.Reporter, stateCfg *state.State, dbFactory *dbfactory.DBFactory, schemaSyncer *schemasync.Syncer, iamManager *iam.Manager) *InstanceService {
+func NewInstanceService(store *store.Store, licenseService *enterprise.LicenseService, metricReporter *metricreport.Reporter, stateCfg *state.State, dbFactory *dbfactory.DBFactory, schemaSyncer *schemasync.Syncer, iamManager *iam.Manager) *InstanceService {
 	return &InstanceService{
 		store:          store,
 		licenseService: licenseService,
@@ -321,14 +321,14 @@ func (s *InstanceService) CreateInstance(ctx context.Context, request *v1pb.Crea
 		return convertInstanceMessage(instanceMessage)
 	}
 
-	instanceCountLimit := s.licenseService.GetInstanceLicenseCount(ctx)
+	activatedInstanceLimit := s.licenseService.GetActivatedInstanceLimit(ctx)
 	if instanceMessage.Metadata.GetActivation() {
 		count, err := s.store.GetActivatedInstanceCount(ctx)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
-		if count >= instanceCountLimit {
-			return nil, status.Errorf(codes.ResourceExhausted, instanceExceededError, instanceCountLimit)
+		if count >= activatedInstanceLimit {
+			return nil, status.Errorf(codes.ResourceExhausted, instanceExceededError, activatedInstanceLimit)
 		}
 	}
 
@@ -479,14 +479,14 @@ func (s *InstanceService) UpdateInstance(ctx context.Context, request *v1pb.Upda
 		}
 	}
 
-	instanceCountLimit := s.licenseService.GetInstanceLicenseCount(ctx)
+	activatedInstanceLimit := s.licenseService.GetActivatedInstanceLimit(ctx)
 	if updateActivation {
 		count, err := s.store.GetActivatedInstanceCount(ctx)
 		if err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
-		if count >= instanceCountLimit {
-			return nil, status.Errorf(codes.ResourceExhausted, instanceExceededError, instanceCountLimit)
+		if count >= activatedInstanceLimit {
+			return nil, status.Errorf(codes.ResourceExhausted, instanceExceededError, activatedInstanceLimit)
 		}
 	}
 
@@ -515,7 +515,7 @@ func (s *InstanceService) DeleteInstance(ctx context.Context, request *v1pb.Dele
 		if len(databases) > 0 {
 			defaultProjectID := common.DefaultProjectID
 			if _, err := s.store.BatchUpdateDatabases(ctx, databases, &store.BatchUpdateDatabases{ProjectID: &defaultProjectID}); err != nil {
-				return nil, err
+				return nil, status.Error(codes.Internal, err.Error())
 			}
 		}
 	} else {
@@ -1414,7 +1414,7 @@ func convertV1DataSourceType(tp v1pb.DataSourceType) (storepb.DataSourceType, er
 }
 
 func (s *InstanceService) instanceCountGuard(ctx context.Context) error {
-	instanceLimit := s.licenseService.GetPlanLimitValue(ctx, enterprise.PlanLimitMaximumInstance)
+	instanceLimit := s.licenseService.GetInstanceLimit(ctx)
 
 	count, err := s.store.CountInstance(ctx, &store.CountInstanceMessage{})
 	if err != nil {

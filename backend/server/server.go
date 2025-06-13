@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/soheilhy/cmux"
+	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
@@ -39,8 +40,7 @@ import (
 	"github.com/bytebase/bytebase/backend/component/state"
 	"github.com/bytebase/bytebase/backend/component/webhook"
 	"github.com/bytebase/bytebase/backend/demo"
-	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
-	enterprisesvc "github.com/bytebase/bytebase/backend/enterprise/service"
+	"github.com/bytebase/bytebase/backend/enterprise"
 	"github.com/bytebase/bytebase/backend/migrator"
 	"github.com/bytebase/bytebase/backend/resources/postgres"
 	"github.com/bytebase/bytebase/backend/runner/approval"
@@ -76,7 +76,7 @@ type Server struct {
 	webhookManager *webhook.Manager
 	iamManager     *iam.Manager
 
-	licenseService enterprise.LicenseService
+	licenseService *enterprise.LicenseService
 
 	profile    *config.Profile
 	echoServer *echo.Echo
@@ -171,7 +171,7 @@ func NewServer(ctx context.Context, profile *config.Profile) (*Server, error) {
 		slog.Warn("failed to backfill issue ts vector", log.BBError(err))
 	}
 
-	s.licenseService, err = enterprisesvc.NewLicenseService(profile.Mode, stores)
+	s.licenseService, err = enterprise.NewLicenseService(profile.Mode, stores)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create license service")
 	}
@@ -193,7 +193,7 @@ func NewServer(ctx context.Context, profile *config.Profile) (*Server, error) {
 		return nil, errors.Wrapf(err, "failed to create iam manager")
 	}
 	s.webhookManager = webhook.NewManager(stores, s.iamManager)
-	s.dbFactory = dbfactory.New(s.store)
+	s.dbFactory = dbfactory.New(s.store, s.licenseService)
 
 	// Configure echo server.
 	s.echoServer = echo.New()
@@ -289,13 +289,14 @@ func NewServer(ctx context.Context, profile *config.Profile) (*Server, error) {
 	// LSP server.
 	s.lspServer = lsp.NewServer(s.store, profile)
 
-	if err := configureGrpcRouters(ctx, mux, s.grpcServer, s.store, sheetManager, s.dbFactory, s.licenseService, s.profile, s.metricReporter, s.stateCfg, s.schemaSyncer, s.webhookManager, s.iamManager, secret); err != nil {
+	connectHandlers, err := configureGrpcRouters(ctx, mux, s.grpcServer, s.store, sheetManager, s.dbFactory, s.licenseService, s.profile, s.metricReporter, s.stateCfg, s.schemaSyncer, s.webhookManager, s.iamManager, secret)
+	if err != nil {
 		return nil, errors.Wrapf(err, "failed to configure gRPC routers")
 	}
 	directorySyncServer := directorysync.NewService(s.store, s.licenseService, s.iamManager)
 
 	// Configure echo server routes.
-	configureEchoRouters(s.echoServer, s.grpcServer, s.lspServer, directorySyncServer, mux, profile)
+	configureEchoRouters(s.echoServer, s.grpcServer, s.lspServer, directorySyncServer, mux, profile, connectHandlers)
 
 	// Configure grpc prometheus metrics.
 	if err := prometheus.DefaultRegisterer.Register(srvMetrics); err != nil {
@@ -338,7 +339,7 @@ func (s *Server) Run(ctx context.Context, port int) error {
 	}
 
 	s.muxServer = cmux.New(listener)
-	grpcListener := s.muxServer.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
+	grpcListener := s.muxServer.Match(cmux.HTTP2HeaderField("content-type", "application/grpc"))
 	httpListener := s.muxServer.Match(cmux.HTTP1Fast(), cmux.Any())
 	s.echoServer.Listener = httpListener
 
@@ -348,7 +349,7 @@ func (s *Server) Run(ctx context.Context, port int) error {
 		}
 	}()
 	go func() {
-		if err := s.echoServer.Start(address); err != nil {
+		if err := s.echoServer.StartH2CServer(address, &http2.Server{}); err != nil {
 			slog.Error("http server listen error", log.BBError(err))
 		}
 	}()

@@ -26,7 +26,7 @@ import (
 	"github.com/bytebase/bytebase/backend/common/log"
 	"github.com/bytebase/bytebase/backend/component/config"
 	"github.com/bytebase/bytebase/backend/component/iam"
-	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
+	"github.com/bytebase/bytebase/backend/enterprise"
 	webhookplugin "github.com/bytebase/bytebase/backend/plugin/webhook"
 	"github.com/bytebase/bytebase/backend/store"
 	"github.com/bytebase/bytebase/backend/utils"
@@ -40,7 +40,7 @@ type ProjectService struct {
 	store          *store.Store
 	profile        *config.Profile
 	iamManager     *iam.Manager
-	licenseService enterprise.LicenseService
+	licenseService *enterprise.LicenseService
 }
 
 // NewProjectService creates a new ProjectService.
@@ -48,7 +48,7 @@ func NewProjectService(
 	store *store.Store,
 	profile *config.Profile,
 	iamManager *iam.Manager,
-	licenseService enterprise.LicenseService,
+	licenseService *enterprise.LicenseService,
 ) *ProjectService {
 	return &ProjectService{
 		store:          store,
@@ -433,14 +433,14 @@ func (s *ProjectService) DeleteProject(ctx context.Context, request *v1pb.Delete
 	// Resources prevent project deletion.
 	databases, err := s.store.ListDatabases(ctx, &store.FindDatabaseMessage{ProjectID: &project.ResourceID, ShowDeleted: true})
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	// We don't move the sheet to default project because BYTEBASE_ARTIFACT sheets belong to the issue and issue project.
 	if request.Force {
 		if len(databases) > 0 {
 			defaultProject := common.DefaultProjectID
 			if _, err := s.store.BatchUpdateDatabases(ctx, databases, &store.BatchUpdateDatabases{ProjectID: &defaultProject}); err != nil {
-				return nil, err
+				return nil, status.Error(codes.Internal, err.Error())
 			}
 		}
 		// We don't close the issues because they might be open still.
@@ -448,7 +448,7 @@ func (s *ProjectService) DeleteProject(ctx context.Context, request *v1pb.Delete
 		// Return the open issue error first because that's more important than transferring out databases.
 		openIssues, err := s.store.ListIssueV2(ctx, &store.FindIssueMessage{ProjectIDs: &[]string{project.ResourceID}, StatusList: []storepb.Issue_Status{storepb.Issue_OPEN}})
 		if err != nil {
-			return nil, err
+			return nil, status.Error(codes.Internal, err.Error())
 		}
 		if len(openIssues) > 0 {
 			return nil, status.Errorf(codes.FailedPrecondition, "resolve all open issues before deleting the project")

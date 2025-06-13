@@ -22,7 +22,7 @@ import (
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/component/config"
 	"github.com/bytebase/bytebase/backend/component/iam"
-	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
+	"github.com/bytebase/bytebase/backend/enterprise"
 	parserbase "github.com/bytebase/bytebase/backend/plugin/parser/base"
 	"github.com/bytebase/bytebase/backend/plugin/parser/sql/transform"
 	"github.com/bytebase/bytebase/backend/plugin/schema"
@@ -37,13 +37,13 @@ type DatabaseService struct {
 	v1pb.UnimplementedDatabaseServiceServer
 	store          *store.Store
 	schemaSyncer   *schemasync.Syncer
-	licenseService enterprise.LicenseService
+	licenseService *enterprise.LicenseService
 	profile        *config.Profile
 	iamManager     *iam.Manager
 }
 
 // NewDatabaseService creates a new DatabaseService.
-func NewDatabaseService(store *store.Store, schemaSyncer *schemasync.Syncer, licenseService enterprise.LicenseService, profile *config.Profile, iamManager *iam.Manager) *DatabaseService {
+func NewDatabaseService(store *store.Store, schemaSyncer *schemasync.Syncer, licenseService *enterprise.LicenseService, profile *config.Profile, iamManager *iam.Manager) *DatabaseService {
 	return &DatabaseService{
 		store:          store,
 		schemaSyncer:   schemaSyncer,
@@ -55,9 +55,12 @@ func NewDatabaseService(store *store.Store, schemaSyncer *schemasync.Syncer, lic
 
 // GetDatabase gets a database.
 func (s *DatabaseService) GetDatabase(ctx context.Context, request *v1pb.GetDatabaseRequest) (*v1pb.Database, error) {
-	databaseMessage, err := s.getDatabaseMessage(ctx, request.Name)
+	databaseMessage, err := getDatabaseMessage(ctx, s.store, request.Name)
 	if err != nil {
 		return nil, err
+	}
+	if databaseMessage.Deleted {
+		return nil, status.Errorf(codes.NotFound, "database %q was deleted", request.Name)
 	}
 	database, err := s.convertToDatabase(ctx, databaseMessage)
 	if err != nil {
@@ -66,27 +69,30 @@ func (s *DatabaseService) GetDatabase(ctx context.Context, request *v1pb.GetData
 	return database, nil
 }
 
-func (s *DatabaseService) getDatabaseMessage(ctx context.Context, name string) (*store.DatabaseMessage, error) {
-	databaseMessage, err := getDatabaseMessage(ctx, s.store, name)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	if databaseMessage == nil {
-		return nil, status.Errorf(codes.NotFound, "database %q not found", name)
-	}
-	if databaseMessage.Deleted {
-		return nil, status.Errorf(codes.NotFound, "database %q was deleted", name)
-	}
-	return databaseMessage, nil
-}
-
 func (s *DatabaseService) BatchGetDatabases(ctx context.Context, request *v1pb.BatchGetDatabasesRequest) (*v1pb.BatchGetDatabasesResponse, error) {
+	user, ok := ctx.Value(common.UserContextKey).(*store.UserMessage)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "user not found")
+	}
+
 	// TODO(steven): Filter out the databases based on `request.parent`.
 	databases := make([]*v1pb.Database, 0, len(request.Names))
 	for _, name := range request.Names {
-		databaseMessage, err := s.getDatabaseMessage(ctx, name)
+		databaseMessage, err := getDatabaseMessage(ctx, s.store, name)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to get database %q with error: %v", name, err.Error())
+		}
+		if databaseMessage.Deleted {
+			// Ignore no deleted database.
+			continue
+		}
+		ok, err := s.iamManager.CheckPermission(ctx, iam.PermissionDatabasesGet, user, databaseMessage.ProjectID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to check permission with error: %v", err.Error())
+		}
+		if !ok {
+			// Ignore no permission database.
+			continue
 		}
 		database, err := s.convertToDatabase(ctx, databaseMessage)
 		if err != nil {
@@ -400,9 +406,12 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, request *v1pb.Upda
 		return nil, status.Errorf(codes.InvalidArgument, "update_mask must be set")
 	}
 
-	databaseMessage, err := s.getDatabaseMessage(ctx, request.Database.Name)
+	databaseMessage, err := getDatabaseMessage(ctx, s.store, request.Database.Name)
 	if err != nil {
 		return nil, err
+	}
+	if databaseMessage.Deleted {
+		return nil, status.Errorf(codes.NotFound, "database %q was deleted", request.Database.Name)
 	}
 
 	var project *store.ProjectMessage
@@ -489,11 +498,14 @@ func (s *DatabaseService) UpdateDatabase(ctx context.Context, request *v1pb.Upda
 
 // SyncDatabase syncs the schema of a database.
 func (s *DatabaseService) SyncDatabase(ctx context.Context, request *v1pb.SyncDatabaseRequest) (*v1pb.SyncDatabaseResponse, error) {
-	database, err := s.getDatabaseMessage(ctx, request.Name)
+	databaseMessage, err := getDatabaseMessage(ctx, s.store, request.Name)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.schemaSyncer.SyncDatabaseSchema(ctx, database); err != nil {
+	if databaseMessage.Deleted {
+		return nil, status.Errorf(codes.NotFound, "database %q was deleted", request.Name)
+	}
+	if err := s.schemaSyncer.SyncDatabaseSchema(ctx, databaseMessage); err != nil {
 		return nil, err
 	}
 	return &v1pb.SyncDatabaseResponse{}, nil
@@ -502,9 +514,12 @@ func (s *DatabaseService) SyncDatabase(ctx context.Context, request *v1pb.SyncDa
 // BatchSyncDatabases sync multiply database asynchronously.
 func (s *DatabaseService) BatchSyncDatabases(ctx context.Context, request *v1pb.BatchSyncDatabasesRequest) (*v1pb.BatchSyncDatabasesResponse, error) {
 	for _, name := range request.Names {
-		databaseMessage, err := s.getDatabaseMessage(ctx, name)
+		databaseMessage, err := getDatabaseMessage(ctx, s.store, name)
 		if err != nil {
 			return nil, err
+		}
+		if databaseMessage.Deleted {
+			continue
 		}
 		s.schemaSyncer.SyncDatabaseAsync(databaseMessage)
 	}
@@ -523,9 +538,12 @@ func (s *DatabaseService) BatchUpdateDatabases(ctx context.Context, request *v1p
 		if req.UpdateMask == nil {
 			return nil, status.Errorf(codes.InvalidArgument, "update_mask must be set")
 		}
-		database, err := s.getDatabaseMessage(ctx, req.Database.Name)
+		database, err := getDatabaseMessage(ctx, s.store, req.Database.Name)
 		if err != nil {
 			return nil, err
+		}
+		if database.Deleted {
+			continue
 		}
 		if updateMask == nil {
 			updateMask = req.UpdateMask
@@ -672,9 +690,12 @@ func (s *DatabaseService) GetDatabaseMetadata(ctx context.Context, request *v1pb
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	database, err := s.getDatabaseMessage(ctx, name)
+	database, err := getDatabaseMessage(ctx, s.store, name)
 	if err != nil {
 		return nil, err
+	}
+	if database.Deleted {
+		return nil, status.Errorf(codes.NotFound, "database %q was deleted", name)
 	}
 	dbSchema, err := s.store.GetDBSchema(ctx, database.InstanceID, database.DatabaseName)
 	if err != nil {
@@ -946,9 +967,12 @@ func convertToChangedResources(r *storepb.ChangedResources) *v1pb.ChangedResourc
 
 // ListSecrets lists the secrets of a database.
 func (s *DatabaseService) ListSecrets(ctx context.Context, request *v1pb.ListSecretsRequest) (*v1pb.ListSecretsResponse, error) {
-	database, err := s.getDatabaseMessage(ctx, request.Parent)
+	database, err := getDatabaseMessage(ctx, s.store, request.Parent)
 	if err != nil {
 		return nil, err
+	}
+	if database.Deleted {
+		return nil, status.Errorf(codes.NotFound, "database %q was deleted", request.Parent)
 	}
 
 	return &v1pb.ListSecretsResponse{
@@ -1199,20 +1223,20 @@ func isUpperCaseLetter(c rune) bool {
 }
 
 func (s *DatabaseService) GetSchemaString(ctx context.Context, request *v1pb.GetSchemaStringRequest) (*v1pb.GetSchemaStringResponse, error) {
-	instanceID, databaseName, err := common.GetInstanceDatabaseID(request.Name)
+	database, err := getDatabaseMessage(ctx, s.store, request.Name)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	instance, err := s.store.GetInstanceV2(ctx, &store.FindInstanceMessage{ResourceID: &instanceID})
+	instance, err := s.store.GetInstanceV2(ctx, &store.FindInstanceMessage{ResourceID: &database.InstanceID})
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	if instance == nil {
-		return nil, status.Errorf(codes.NotFound, "instance %q not found", instanceID)
+		return nil, status.Errorf(codes.NotFound, "instance %q not found", database.InstanceID)
 	}
 
-	dbSchema, err := s.store.GetDBSchema(ctx, instanceID, databaseName)
+	dbSchema, err := s.store.GetDBSchema(ctx, database.InstanceID, database.DatabaseName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to get database schema: %v", err)
 	}

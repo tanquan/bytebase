@@ -119,13 +119,13 @@ const (
 	PlanFeature_FEATURE_INSTANCE_SSL_CONNECTION                PlanFeature = 34
 	PlanFeature_FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL    PlanFeature = 35
 	PlanFeature_FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION PlanFeature = 36
+	PlanFeature_FEATURE_CUSTOM_INSTANCE_SYNC_TIME              PlanFeature = 42
+	PlanFeature_FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT       PlanFeature = 43
 	PlanFeature_FEATURE_GOOGLE_AND_GITHUB_SSO                  PlanFeature = 37
 	PlanFeature_FEATURE_USER_GROUPS                            PlanFeature = 38
 	PlanFeature_FEATURE_DISALLOW_SELF_SERVICE_SIGNUP           PlanFeature = 39
 	PlanFeature_FEATURE_DATABASE_SECRET_VARIABLES              PlanFeature = 40
 	PlanFeature_FEATURE_QUERY_DATASOURCE_RESTRICTION           PlanFeature = 41
-	PlanFeature_FEATURE_CUSTOM_INSTANCE_SYNC_TIME              PlanFeature = 42
-	PlanFeature_FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT       PlanFeature = 43
 	PlanFeature_FEATURE_RISK_ASSESSMENT                        PlanFeature = 44
 	PlanFeature_FEATURE_APPROVAL_WORKFLOW                      PlanFeature = 45
 	PlanFeature_FEATURE_AUDIT_LOG                              PlanFeature = 46
@@ -199,13 +199,13 @@ var (
 		34: "FEATURE_INSTANCE_SSL_CONNECTION",
 		35: "FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL",
 		36: "FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION",
+		42: "FEATURE_CUSTOM_INSTANCE_SYNC_TIME",
+		43: "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT",
 		37: "FEATURE_GOOGLE_AND_GITHUB_SSO",
 		38: "FEATURE_USER_GROUPS",
 		39: "FEATURE_DISALLOW_SELF_SERVICE_SIGNUP",
 		40: "FEATURE_DATABASE_SECRET_VARIABLES",
 		41: "FEATURE_QUERY_DATASOURCE_RESTRICTION",
-		42: "FEATURE_CUSTOM_INSTANCE_SYNC_TIME",
-		43: "FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT",
 		44: "FEATURE_RISK_ASSESSMENT",
 		45: "FEATURE_APPROVAL_WORKFLOW",
 		46: "FEATURE_AUDIT_LOG",
@@ -275,13 +275,13 @@ var (
 		"FEATURE_INSTANCE_SSL_CONNECTION":                34,
 		"FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL":    35,
 		"FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION": 36,
+		"FEATURE_CUSTOM_INSTANCE_SYNC_TIME":              42,
+		"FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT":       43,
 		"FEATURE_GOOGLE_AND_GITHUB_SSO":                  37,
 		"FEATURE_USER_GROUPS":                            38,
 		"FEATURE_DISALLOW_SELF_SERVICE_SIGNUP":           39,
 		"FEATURE_DATABASE_SECRET_VARIABLES":              40,
 		"FEATURE_QUERY_DATASOURCE_RESTRICTION":           41,
-		"FEATURE_CUSTOM_INSTANCE_SYNC_TIME":              42,
-		"FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT":       43,
 		"FEATURE_RISK_ASSESSMENT":                        44,
 		"FEATURE_APPROVAL_WORKFLOW":                      45,
 		"FEATURE_AUDIT_LOG":                              46,
@@ -380,7 +380,7 @@ func (*GetSubscriptionRequest) Descriptor() ([]byte, []int) {
 
 type UpdateSubscriptionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Patch         *PatchSubscription     `protobuf:"bytes,1,opt,name=patch,proto3" json:"patch,omitempty"`
+	License       string                 `protobuf:"bytes,1,opt,name=license,proto3" json:"license,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -415,51 +415,7 @@ func (*UpdateSubscriptionRequest) Descriptor() ([]byte, []int) {
 	return file_v1_subscription_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *UpdateSubscriptionRequest) GetPatch() *PatchSubscription {
-	if x != nil {
-		return x.Patch
-	}
-	return nil
-}
-
-type PatchSubscription struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	License       string                 `protobuf:"bytes,1,opt,name=license,proto3" json:"license,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PatchSubscription) Reset() {
-	*x = PatchSubscription{}
-	mi := &file_v1_subscription_service_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PatchSubscription) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PatchSubscription) ProtoMessage() {}
-
-func (x *PatchSubscription) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PatchSubscription.ProtoReflect.Descriptor instead.
-func (*PatchSubscription) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *PatchSubscription) GetLicense() string {
+func (x *UpdateSubscriptionRequest) GetLicense() string {
 	if x != nil {
 		return x.License
 	}
@@ -471,18 +427,16 @@ type Subscription struct {
 	SeatCount     int32                  `protobuf:"varint,1,opt,name=seat_count,json=seatCount,proto3" json:"seat_count,omitempty"`
 	InstanceCount int32                  `protobuf:"varint,2,opt,name=instance_count,json=instanceCount,proto3" json:"instance_count,omitempty"`
 	ExpiresTime   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_time,json=expiresTime,proto3" json:"expires_time,omitempty"`
-	StartedTime   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=started_time,json=startedTime,proto3" json:"started_time,omitempty"`
-	Plan          PlanType               `protobuf:"varint,5,opt,name=plan,proto3,enum=bytebase.v1.PlanType" json:"plan,omitempty"`
-	Trialing      bool                   `protobuf:"varint,6,opt,name=trialing,proto3" json:"trialing,omitempty"`
-	OrgId         string                 `protobuf:"bytes,7,opt,name=org_id,json=orgId,proto3" json:"org_id,omitempty"`
-	OrgName       string                 `protobuf:"bytes,8,opt,name=org_name,json=orgName,proto3" json:"org_name,omitempty"`
+	Plan          PlanType               `protobuf:"varint,4,opt,name=plan,proto3,enum=bytebase.v1.PlanType" json:"plan,omitempty"`
+	Trialing      bool                   `protobuf:"varint,5,opt,name=trialing,proto3" json:"trialing,omitempty"`
+	OrgName       string                 `protobuf:"bytes,6,opt,name=org_name,json=orgName,proto3" json:"org_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Subscription) Reset() {
 	*x = Subscription{}
-	mi := &file_v1_subscription_service_proto_msgTypes[3]
+	mi := &file_v1_subscription_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -494,7 +448,7 @@ func (x *Subscription) String() string {
 func (*Subscription) ProtoMessage() {}
 
 func (x *Subscription) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[3]
+	mi := &file_v1_subscription_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -507,7 +461,7 @@ func (x *Subscription) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Subscription.ProtoReflect.Descriptor instead.
 func (*Subscription) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{3}
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Subscription) GetSeatCount() int32 {
@@ -531,13 +485,6 @@ func (x *Subscription) GetExpiresTime() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *Subscription) GetStartedTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.StartedTime
-	}
-	return nil
-}
-
 func (x *Subscription) GetPlan() PlanType {
 	if x != nil {
 		return x.Plan
@@ -550,13 +497,6 @@ func (x *Subscription) GetTrialing() bool {
 		return x.Trialing
 	}
 	return false
-}
-
-func (x *Subscription) GetOrgId() string {
-	if x != nil {
-		return x.OrgId
-	}
-	return ""
 }
 
 func (x *Subscription) GetOrgName() string {
@@ -577,7 +517,7 @@ type PlanConfig struct {
 
 func (x *PlanConfig) Reset() {
 	*x = PlanConfig{}
-	mi := &file_v1_subscription_service_proto_msgTypes[4]
+	mi := &file_v1_subscription_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -589,7 +529,7 @@ func (x *PlanConfig) String() string {
 func (*PlanConfig) ProtoMessage() {}
 
 func (x *PlanConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[4]
+	mi := &file_v1_subscription_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -602,7 +542,7 @@ func (x *PlanConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanConfig.ProtoReflect.Descriptor instead.
 func (*PlanConfig) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{4}
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PlanConfig) GetPlans() []*PlanLimitConfig {
@@ -632,7 +572,7 @@ type PlanLimitConfig struct {
 
 func (x *PlanLimitConfig) Reset() {
 	*x = PlanLimitConfig{}
-	mi := &file_v1_subscription_service_proto_msgTypes[5]
+	mi := &file_v1_subscription_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -644,7 +584,7 @@ func (x *PlanLimitConfig) String() string {
 func (*PlanLimitConfig) ProtoMessage() {}
 
 func (x *PlanLimitConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_subscription_service_proto_msgTypes[5]
+	mi := &file_v1_subscription_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -657,7 +597,7 @@ func (x *PlanLimitConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanLimitConfig.ProtoReflect.Descriptor instead.
 func (*PlanLimitConfig) Descriptor() ([]byte, []int) {
-	return file_v1_subscription_service_proto_rawDescGZIP(), []int{5}
+	return file_v1_subscription_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PlanLimitConfig) GetType() PlanType {
@@ -693,21 +633,17 @@ var File_v1_subscription_service_proto protoreflect.FileDescriptor
 const file_v1_subscription_service_proto_rawDesc = "" +
 	"\n" +
 	"\x1dv1/subscription_service.proto\x12\vbytebase.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x1fgoogle/api/field_behavior.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13v1/annotation.proto\"\x18\n" +
-	"\x16GetSubscriptionRequest\"Q\n" +
-	"\x19UpdateSubscriptionRequest\x124\n" +
-	"\x05patch\x18\x01 \x01(\v2\x1e.bytebase.v1.PatchSubscriptionR\x05patch\"-\n" +
-	"\x11PatchSubscription\x12\x18\n" +
-	"\alicense\x18\x01 \x01(\tR\alicense\"\xfb\x02\n" +
+	"\x16GetSubscriptionRequest\"5\n" +
+	"\x19UpdateSubscriptionRequest\x12\x18\n" +
+	"\alicense\x18\x01 \x01(\tR\alicense\"\x99\x02\n" +
 	"\fSubscription\x12#\n" +
 	"\n" +
 	"seat_count\x18\x01 \x01(\x05B\x04\xe2A\x01\x03R\tseatCount\x12+\n" +
 	"\x0einstance_count\x18\x02 \x01(\x05B\x04\xe2A\x01\x03R\rinstanceCount\x12C\n" +
-	"\fexpires_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\vexpiresTime\x12C\n" +
-	"\fstarted_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\vstartedTime\x12/\n" +
-	"\x04plan\x18\x05 \x01(\x0e2\x15.bytebase.v1.PlanTypeB\x04\xe2A\x01\x03R\x04plan\x12 \n" +
-	"\btrialing\x18\x06 \x01(\bB\x04\xe2A\x01\x03R\btrialing\x12\x1b\n" +
-	"\x06org_id\x18\a \x01(\tB\x04\xe2A\x01\x03R\x05orgId\x12\x1f\n" +
-	"\borg_name\x18\b \x01(\tB\x04\xe2A\x01\x03R\aorgName\"\x87\x01\n" +
+	"\fexpires_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampB\x04\xe2A\x01\x03R\vexpiresTime\x12/\n" +
+	"\x04plan\x18\x04 \x01(\x0e2\x15.bytebase.v1.PlanTypeB\x04\xe2A\x01\x03R\x04plan\x12 \n" +
+	"\btrialing\x18\x05 \x01(\bB\x04\xe2A\x01\x03R\btrialing\x12\x1f\n" +
+	"\borg_name\x18\x06 \x01(\tB\x04\xe2A\x01\x03R\aorgName\"\x87\x01\n" +
 	"\n" +
 	"PlanConfig\x122\n" +
 	"\x05plans\x18\x01 \x03(\v2\x1c.bytebase.v1.PlanLimitConfigR\x05plans\x12E\n" +
@@ -761,14 +697,14 @@ const file_v1_subscription_service_proto_rawDesc = "" +
 	"\vFEATURE_IAM\x10!\x12#\n" +
 	"\x1fFEATURE_INSTANCE_SSL_CONNECTION\x10\"\x12/\n" +
 	"+FEATURE_INSTANCE_CONNECTION_OVER_SSH_TUNNEL\x10#\x122\n" +
-	".FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION\x10$\x12!\n" +
+	".FEATURE_INSTANCE_CONNECTION_IAM_AUTHENTICATION\x10$\x12%\n" +
+	"!FEATURE_CUSTOM_INSTANCE_SYNC_TIME\x10*\x12,\n" +
+	"(FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT\x10+\x12!\n" +
 	"\x1dFEATURE_GOOGLE_AND_GITHUB_SSO\x10%\x12\x17\n" +
 	"\x13FEATURE_USER_GROUPS\x10&\x12(\n" +
 	"$FEATURE_DISALLOW_SELF_SERVICE_SIGNUP\x10'\x12%\n" +
 	"!FEATURE_DATABASE_SECRET_VARIABLES\x10(\x12(\n" +
-	"$FEATURE_QUERY_DATASOURCE_RESTRICTION\x10)\x12%\n" +
-	"!FEATURE_CUSTOM_INSTANCE_SYNC_TIME\x10*\x12,\n" +
-	"(FEATURE_CUSTOM_INSTANCE_CONNECTION_LIMIT\x10+\x12\x1b\n" +
+	"$FEATURE_QUERY_DATASOURCE_RESTRICTION\x10)\x12\x1b\n" +
 	"\x17FEATURE_RISK_ASSESSMENT\x10,\x12\x1d\n" +
 	"\x19FEATURE_APPROVAL_WORKFLOW\x10-\x12\x15\n" +
 	"\x11FEATURE_AUDIT_LOG\x10.\x12\x1a\n" +
@@ -798,10 +734,10 @@ const file_v1_subscription_service_proto_rawDesc = "" +
 	"\x12FEATURE_CUSTOM_MSA\x10F\x12\x1d\n" +
 	"\x19FEATURE_COMMUNITY_SUPPORT\x10G\x12\x19\n" +
 	"\x15FEATURE_EMAIL_SUPPORT\x10H\x12&\n" +
-	"\"FEATURE_DEDICATED_SUPPORT_WITH_SLA\x10I2\xa3\x02\n" +
+	"\"FEATURE_DEDICATED_SUPPORT_WITH_SLA\x10I2\xa5\x02\n" +
 	"\x13SubscriptionService\x12r\n" +
-	"\x0fGetSubscription\x12#.bytebase.v1.GetSubscriptionRequest\x1a\x19.bytebase.v1.Subscription\"\x1f\xdaA\x00\x80\xea0\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/subscription\x12\x97\x01\n" +
-	"\x12UpdateSubscription\x12&.bytebase.v1.UpdateSubscriptionRequest\x1a\x19.bytebase.v1.Subscription\">\xdaA\x05patch\x8a\xea0\x0fbb.settings.set\x90\xea0\x01\x82\xd3\xe4\x93\x02\x19:\x05patch2\x10/v1/subscriptionB\x11Z\x0fgenerated-go/v1b\x06proto3"
+	"\x0fGetSubscription\x12#.bytebase.v1.GetSubscriptionRequest\x1a\x19.bytebase.v1.Subscription\"\x1f\xdaA\x00\x80\xea0\x01\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/subscription\x12\x99\x01\n" +
+	"\x12UpdateSubscription\x12&.bytebase.v1.UpdateSubscriptionRequest\x1a\x19.bytebase.v1.Subscription\"@\xdaA\x05patch\x8a\xea0\x0fbb.settings.set\x90\xea0\x01\x82\xd3\xe4\x93\x02\x1b:\alicense2\x10/v1/subscriptionB4Z2github.com/bytebase/bytebase/proto/generated-go/v1b\x06proto3"
 
 var (
 	file_v1_subscription_service_proto_rawDescOnce sync.Once
@@ -816,36 +752,33 @@ func file_v1_subscription_service_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_subscription_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_v1_subscription_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_v1_subscription_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_v1_subscription_service_proto_goTypes = []any{
 	(PlanType)(0),                     // 0: bytebase.v1.PlanType
 	(PlanFeature)(0),                  // 1: bytebase.v1.PlanFeature
 	(*GetSubscriptionRequest)(nil),    // 2: bytebase.v1.GetSubscriptionRequest
 	(*UpdateSubscriptionRequest)(nil), // 3: bytebase.v1.UpdateSubscriptionRequest
-	(*PatchSubscription)(nil),         // 4: bytebase.v1.PatchSubscription
-	(*Subscription)(nil),              // 5: bytebase.v1.Subscription
-	(*PlanConfig)(nil),                // 6: bytebase.v1.PlanConfig
-	(*PlanLimitConfig)(nil),           // 7: bytebase.v1.PlanLimitConfig
-	(*timestamppb.Timestamp)(nil),     // 8: google.protobuf.Timestamp
+	(*Subscription)(nil),              // 4: bytebase.v1.Subscription
+	(*PlanConfig)(nil),                // 5: bytebase.v1.PlanConfig
+	(*PlanLimitConfig)(nil),           // 6: bytebase.v1.PlanLimitConfig
+	(*timestamppb.Timestamp)(nil),     // 7: google.protobuf.Timestamp
 }
 var file_v1_subscription_service_proto_depIdxs = []int32{
-	4,  // 0: bytebase.v1.UpdateSubscriptionRequest.patch:type_name -> bytebase.v1.PatchSubscription
-	8,  // 1: bytebase.v1.Subscription.expires_time:type_name -> google.protobuf.Timestamp
-	8,  // 2: bytebase.v1.Subscription.started_time:type_name -> google.protobuf.Timestamp
-	0,  // 3: bytebase.v1.Subscription.plan:type_name -> bytebase.v1.PlanType
-	7,  // 4: bytebase.v1.PlanConfig.plans:type_name -> bytebase.v1.PlanLimitConfig
-	1,  // 5: bytebase.v1.PlanConfig.instance_features:type_name -> bytebase.v1.PlanFeature
-	0,  // 6: bytebase.v1.PlanLimitConfig.type:type_name -> bytebase.v1.PlanType
-	1,  // 7: bytebase.v1.PlanLimitConfig.features:type_name -> bytebase.v1.PlanFeature
-	2,  // 8: bytebase.v1.SubscriptionService.GetSubscription:input_type -> bytebase.v1.GetSubscriptionRequest
-	3,  // 9: bytebase.v1.SubscriptionService.UpdateSubscription:input_type -> bytebase.v1.UpdateSubscriptionRequest
-	5,  // 10: bytebase.v1.SubscriptionService.GetSubscription:output_type -> bytebase.v1.Subscription
-	5,  // 11: bytebase.v1.SubscriptionService.UpdateSubscription:output_type -> bytebase.v1.Subscription
-	10, // [10:12] is the sub-list for method output_type
-	8,  // [8:10] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	7, // 0: bytebase.v1.Subscription.expires_time:type_name -> google.protobuf.Timestamp
+	0, // 1: bytebase.v1.Subscription.plan:type_name -> bytebase.v1.PlanType
+	6, // 2: bytebase.v1.PlanConfig.plans:type_name -> bytebase.v1.PlanLimitConfig
+	1, // 3: bytebase.v1.PlanConfig.instance_features:type_name -> bytebase.v1.PlanFeature
+	0, // 4: bytebase.v1.PlanLimitConfig.type:type_name -> bytebase.v1.PlanType
+	1, // 5: bytebase.v1.PlanLimitConfig.features:type_name -> bytebase.v1.PlanFeature
+	2, // 6: bytebase.v1.SubscriptionService.GetSubscription:input_type -> bytebase.v1.GetSubscriptionRequest
+	3, // 7: bytebase.v1.SubscriptionService.UpdateSubscription:input_type -> bytebase.v1.UpdateSubscriptionRequest
+	4, // 8: bytebase.v1.SubscriptionService.GetSubscription:output_type -> bytebase.v1.Subscription
+	4, // 9: bytebase.v1.SubscriptionService.UpdateSubscription:output_type -> bytebase.v1.Subscription
+	8, // [8:10] is the sub-list for method output_type
+	6, // [6:8] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_v1_subscription_service_proto_init() }
@@ -860,7 +793,7 @@ func file_v1_subscription_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_subscription_service_proto_rawDesc), len(file_v1_subscription_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   6,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

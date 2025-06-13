@@ -1,22 +1,14 @@
 import dayjs from "dayjs";
-import { orderBy, uniq } from "lodash-es";
+import { uniq } from "lodash-es";
 import { defineStore } from "pinia";
 import { planServiceClient } from "@/grpcweb";
-import { EMPTY_ID, UNKNOWN_ID } from "@/types";
-import type { Plan, PlanCheckRun } from "@/types/proto/v1/plan_service";
+import type { Plan } from "@/types/proto/v1/plan_service";
 import {
-  emptyPlan,
-  unknownPlan,
-} from "@/types/v1/issue/plan";
-import {
-  extractProjectResourceName,
   getTsRangeFromSearchParams,
   getValueFromSearchParams,
-  hasProjectPermissionV2,
   type SearchParams,
 } from "@/utils";
 import { useUserStore } from "../user";
-import { useProjectV1Store } from "./project";
 
 export interface PlanFind {
   project: string;
@@ -70,21 +62,6 @@ export const buildPlanFindBySearchParams = (
   return filter;
 };
 
-export const fetchPlanCheckRuns = async (plan: Plan): Promise<PlanCheckRun[]> => {
-  const project = `projects/${extractProjectResourceName(plan.name)}`;
-  const projectEntity =
-    await useProjectV1Store().getOrFetchProjectByName(project);
-
-  if (hasProjectPermissionV2(projectEntity, "bb.planCheckRuns.list")) {
-    const { planCheckRuns } = await planServiceClient.listPlanCheckRuns({
-      parent: plan.name,
-      latestOnly: true,
-    });
-    return orderBy(planCheckRuns, "name", "desc");
-  }
-  return [];
-};
-
 export type ListPlanParams = {
   find: PlanFind;
   pageSize?: number;
@@ -115,25 +92,8 @@ export const usePlanStore = defineStore("plan", () => {
     return plan;
   };
 
-  const fetchPlanByUID = async (
-    uid: string,
-    project = "-"
-  ): Promise<Plan> => {
-    if (uid === "undefined") {
-      console.warn("undefined plan uid");
-      return emptyPlan();
-    }
-
-    if (uid === String(EMPTY_ID)) return emptyPlan();
-    if (uid === String(UNKNOWN_ID)) return unknownPlan();
-
-    return fetchPlanByName(`projects/${project}/plans/${uid}`);
-  };
-
   return {
     searchPlans,
     fetchPlanByName,
-    fetchPlanByUID,
-    fetchPlanCheckRuns,
   };
 });

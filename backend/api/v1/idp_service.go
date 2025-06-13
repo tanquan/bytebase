@@ -13,7 +13,7 @@ import (
 
 	"github.com/bytebase/bytebase/backend/common"
 	"github.com/bytebase/bytebase/backend/common/log"
-	enterprise "github.com/bytebase/bytebase/backend/enterprise/api"
+	"github.com/bytebase/bytebase/backend/enterprise"
 	"github.com/bytebase/bytebase/backend/plugin/idp/ldap"
 	"github.com/bytebase/bytebase/backend/plugin/idp/oauth2"
 	"github.com/bytebase/bytebase/backend/plugin/idp/oidc"
@@ -26,11 +26,11 @@ import (
 type IdentityProviderService struct {
 	v1pb.UnimplementedIdentityProviderServiceServer
 	store          *store.Store
-	licenseService enterprise.LicenseService
+	licenseService *enterprise.LicenseService
 }
 
 // NewIdentityProviderService creates a new IdentityProviderService.
-func NewIdentityProviderService(store *store.Store, licenseService enterprise.LicenseService) *IdentityProviderService {
+func NewIdentityProviderService(store *store.Store, licenseService *enterprise.LicenseService) *IdentityProviderService {
 	return &IdentityProviderService{
 		store:          store,
 		licenseService: licenseService,
@@ -69,7 +69,7 @@ func (s *IdentityProviderService) ListIdentityProviders(ctx context.Context, _ *
 
 // CreateIdentityProvider creates an identity provider.
 func (s *IdentityProviderService) CreateIdentityProvider(ctx context.Context, request *v1pb.CreateIdentityProviderRequest) (*v1pb.IdentityProvider, error) {
-	if err := s.checkFeatureAvailable(request.IdentityProvider.Type); err != nil {
+	if err := s.checkFeatureAvailable(request.IdentityProvider); err != nil {
 		return nil, err
 	}
 
@@ -128,7 +128,7 @@ func (s *IdentityProviderService) UpdateIdentityProvider(ctx context.Context, re
 	if request.UpdateMask == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "update_mask must be set")
 	}
-	if err := s.checkFeatureAvailable(request.IdentityProvider.Type); err != nil {
+	if err := s.checkFeatureAvailable(request.IdentityProvider); err != nil {
 		return nil, err
 	}
 
@@ -198,20 +198,18 @@ func (s *IdentityProviderService) DeleteIdentityProvider(ctx context.Context, re
 	return &emptypb.Empty{}, nil
 }
 
-func (s *IdentityProviderService) checkFeatureAvailable(ssoType v1pb.IdentityProviderType) error {
-	if err := s.licenseService.IsFeatureEnabled(v1pb.PlanFeature_FEATURE_ENTERPRISE_SSO); err != nil {
-		return status.Error(codes.PermissionDenied, err.Error())
+var googleGitHubDomains = map[string]bool{
+	"google.com": true,
+	"github.com": true,
+}
+
+func (s *IdentityProviderService) checkFeatureAvailable(idp *v1pb.IdentityProvider) error {
+	featurePlan := v1pb.PlanFeature_FEATURE_ENTERPRISE_SSO
+	if idp.Type == v1pb.IdentityProviderType_OAUTH2 && googleGitHubDomains[idp.Domain] {
+		featurePlan = v1pb.PlanFeature_FEATURE_GOOGLE_AND_GITHUB_SSO
 	}
-	plan := s.licenseService.GetEffectivePlan()
-	switch plan {
-	case v1pb.PlanType_FREE:
-		return status.Error(codes.PermissionDenied, "feature is not available for free plan")
-	case v1pb.PlanType_ENTERPRISE:
-		return nil
-	case v1pb.PlanType_TEAM:
-		if ssoType != v1pb.IdentityProviderType_OAUTH2 {
-			return status.Error(codes.PermissionDenied, "only oauth type is available")
-		}
+	if err := s.licenseService.IsFeatureEnabled(featurePlan); err != nil {
+		return status.Error(codes.PermissionDenied, err.Error())
 	}
 	return nil
 }
